@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { WorkflowSidebar as Sidebar } from "./WorkflowSidebar";
 import { StatusBanner } from "./StatusBanner";
@@ -6,12 +6,18 @@ import { CommandPalette } from "./CommandPalette";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "react-i18next";
 import { useDragWindow } from "../hooks/useDragWindow";
+import { getManagementMode } from "../lib/tauri";
 
 export function Layout() {
   const { t } = useTranslation();
   const { appError, refreshAppData } = useApp();
   const onDrag = useDragWindow();
   const navigate = useNavigate();
+  const [managementMode, setManagementMode] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getManagementMode().then(setManagementMode).catch(() => setManagementMode(false));
+  }, []);
 
   // Cmd+, to open Settings
   useEffect(() => {
@@ -55,7 +61,11 @@ export function Layout() {
               />
             ) : null}
             <div className="app-panel px-4 py-3 text-[12px] text-secondary" role="status">
-              Skills Manager Dev · 已连接现有项目与技能库 · AI 任务选择与执行记录自动汇入开发版。
+              {managementMode === true
+                ? "Skills Manager Dev · 已接管共享技能库 · 安装、更新、卸载和部署由此界面管理。"
+                : managementMode === false
+                  ? "Skills Manager Dev · 隔离开发模式 · 当前操作不会修改正式技能库。"
+                  : "Skills Manager Dev · 正在确认管理模式…"}
             </div>
             <Outlet />
           </div>

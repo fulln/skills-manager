@@ -230,7 +230,7 @@ pub fn import(skills: Vec<String>) -> Result<LocalImportResult, String> {
     paths.sort_by(|a, b| b.2.cmp(&a.2));
     let mut result=LocalImportResult{scanned_files:0,imported:0,skipped:0,incomplete_files:paths.len().saturating_sub(100),malformed_lines:0,coverage_note:"只读扫描最近修改的最多 100 份 Codex/Claude JSONL；每份最多 20MB。按来源会话与技能去重；读取说明仅计推断。无法覆盖已删除日志、未扫描文件及其他 AI。".into()};
     let scopes = governance::list(
-        &governance::open(&super::central_repo::base_dir().join("skills-governance.sqlite3"))
+        &governance::open(&super::central_repo::workflow_library_dir().join("skills-governance.sqlite3"))
             .map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;

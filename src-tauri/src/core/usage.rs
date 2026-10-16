@@ -88,7 +88,7 @@ pub struct ImportResult {
     pub error: Option<String>,
 }
 fn db_path() -> PathBuf {
-    central_repo::base_dir().join("usage-events.sqlite3")
+    central_repo::workflow_library_dir().join("usage-events.sqlite3")
 }
 fn open_at(path: &std::path::Path) -> Result<Connection> {
     if let Some(p) = path.parent() {

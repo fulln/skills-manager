@@ -35,3 +35,8 @@ pub async fn workflow_recommend(
     .map_err(AppError::db)?
     .map_err(AppError::db)
 }
+
+#[tauri::command]
+pub fn get_management_mode() -> bool {
+    crate::core::central_repo::manages_existing_library()
+}

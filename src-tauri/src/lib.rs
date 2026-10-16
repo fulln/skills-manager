@@ -1006,7 +1006,7 @@ pub fn run() {
         })
         .invoke_handler(|invoke: tauri::ipc::Invoke<tauri::Wry>| {
             if !core::dev_policy::command_allowed(invoke.message.command()) {
-                invoke.resolver.reject("独立开发版暂不开放原有部署、删除或备份写操作；请在项目层级页管理独立元数据。");
+                invoke.resolver.reject("当前模式未开放此操作（远端备份、库迁移和应用更新暂不开放）。");
                 return true;
             }
             let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
@@ -1022,6 +1022,7 @@ pub fn run() {
             commands::usage::usage_events,
             commands::usage::usage_import_nmem,
             commands::usage::usage_import_local,
+            commands::workflow::get_management_mode,
             commands::workflow::workflow_snapshot,
             commands::workflow::workflow_refresh,
             commands::workflow::workflow_recommend,

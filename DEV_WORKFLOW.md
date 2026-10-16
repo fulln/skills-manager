@@ -21,7 +21,9 @@ The running app refreshes live discovery and bounded Codex/Claude log observatio
 
 ## Isolation and limits
 
-- Production catalog is read-only; deployment, deletion, upstream configuration and legacy writes remain blocked in the development UI.
+- Default mode remains isolated and read-only for production skills. Explicit local opt-in `~/Library/Application Support/skills-manager-dev/management.json` containing `{"manage_existing_library":true}` lets Dev manage the existing shared library using upstream install/update/delete/deployment handlers. Restart after changing mode; `SKILLS_MANAGER_DEV_ROOT` always forces sandbox mode.
+- In management mode the shared catalog stays in `~/.skills-manager` (or its existing configured location). Governance and usage stay in `skills-manager-dev/library`, alongside the Python workflow ledger. Startup does not reapply presets or re-enable skills. Remote backup, library relocation, custom target configuration and app updater remain unavailable in this edition.
+- The verified upstream CLI at `~/.skills-manager/bin` is retained, along with a bundled copy. Removing the original desktop bundle must never remove this bridge or the shared skill library.
 - Workflow/governance/usage databases live in the development namespace. Python uses a process lock for refresh, SQLite transactions, and atomic sync-status replacement.
 - Runtime copies no longer need users to create scopes or import each skill. Current task directories with real project markers can register automatically.
 - Domains and roles are initially inferred. Users can adjust governance metadata; refresh preserves exclusions and overrides.

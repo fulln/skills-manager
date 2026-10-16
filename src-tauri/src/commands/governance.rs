@@ -1,7 +1,7 @@
 use crate::core::{central_repo, error::AppError, governance, workflow};
 
 fn db() -> Result<rusqlite::Connection, AppError> {
-    governance::open(&central_repo::base_dir().join("skills-governance.sqlite3"))
+    governance::open(&central_repo::workflow_library_dir().join("skills-governance.sqlite3"))
         .map_err(AppError::db)
 }
 

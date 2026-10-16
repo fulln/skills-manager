@@ -187,6 +187,9 @@ export interface ProjectSkillDocument {
 
 export const getToolStatus = () => invoke<ToolInfo[]>("get_tool_status");
 
+/** Whether the dev build is attached to the shared Skills Manager library. */
+export const getManagementMode = () => invoke<boolean>("get_management_mode");
+
 export const setToolEnabled = (key: string, enabled: boolean) =>
   invoke<void>("set_tool_enabled", { key, enabled });
 

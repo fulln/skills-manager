@@ -90,11 +90,34 @@ fn default_base_dir() -> PathBuf {
     home_base_dir()
 }
 
-/// Development builds use a hermetic app-data namespace and never touch the
-/// production skills-manager library. The environment override is useful for
-/// tests and local smoke runs.
+/// An explicit, persisted opt-in makes Dev manage the existing shared library.
+/// Sandbox overrides always take precedence, including for smoke tests.
+pub fn manages_existing_library() -> bool {
+    if std::env::var_os("SKILLS_MANAGER_DEV_ROOT").is_some() || cfg!(test) {
+        return false;
+    }
+    static MODE: OnceLock<bool> = OnceLock::new();
+    *MODE.get_or_init(|| management_enabled_at(&dev_root().join("management.json")))
+}
+
+fn management_enabled_at(path: &Path) -> bool {
+    fs::read(path).ok()
+        .and_then(|raw| serde_json::from_slice::<serde_json::Value>(&raw).ok())
+        .is_some_and(|v| v["manage_existing_library"].as_bool() == Some(true))
+}
+
 pub fn is_isolated_dev() -> bool {
-    cfg!(not(test)) || std::env::var_os("SKILLS_MANAGER_DEV_ROOT").is_some()
+    (cfg!(not(test)) || std::env::var_os("SKILLS_MANAGER_DEV_ROOT").is_some())
+        && !manages_existing_library()
+}
+
+/// Governance and usage stay alongside the Python workflow ledger in both modes.
+pub fn workflow_library_dir() -> PathBuf {
+    if cfg!(test) && std::env::var_os("SKILLS_MANAGER_DEV_ROOT").is_none() {
+        base_dir()
+    } else {
+        dev_root().join("library")
+    }
 }
 
 pub fn dev_root() -> PathBuf {
@@ -1435,4 +1458,21 @@ mod tests {
     use super::*;
     #[test] fn refuses_external_and_parent_traversal(){let d=tempfile::tempdir().unwrap();let root=d.path().join("dev");std::fs::create_dir(&root).unwrap();assert!(validate_dev_path(&root,&root.join("new/file")).is_ok());assert!(validate_dev_path(&root,&d.path().join("prod")).is_err());assert!(validate_dev_path(&root,&root.join("new/../../prod")).is_err());assert!(validate_dev_path(&root,Path::new("relative")).is_err());}
     #[test] #[cfg(unix)] fn missing_children_cannot_escape_via_symlink(){let d=tempfile::tempdir().unwrap();let root=d.path().join("dev");let outside=d.path().join("outside");std::fs::create_dir(&root).unwrap();std::fs::create_dir(&outside).unwrap();std::os::unix::fs::symlink(&outside,root.join("link")).unwrap();assert!(validate_dev_path(&root,&root.join("link/new/skill")).is_err());}
+}
+
+#[cfg(test)]
+mod management_mode_tests {
+    use super::*;
+    #[test]
+    fn only_explicit_boolean_true_enables_management() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("management.json");
+        assert!(!management_enabled_at(&p));
+        for raw in ["invalid", "{}", r#"{"manage_existing_library":"true"}"#, r#"{"manage_existing_library":false}"#] {
+            fs::write(&p, raw).unwrap();
+            assert!(!management_enabled_at(&p));
+        }
+        fs::write(&p, r#"{"manage_existing_library":true}"#).unwrap();
+        assert!(management_enabled_at(&p));
+    }
 }
