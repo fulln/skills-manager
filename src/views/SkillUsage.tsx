@@ -25,7 +25,7 @@ export function SkillUsage() {
   const requestId = useRef(0);
   const reload = useCallback(async () => {
     const id = ++requestId.current;
-    setLoading(true);
+
     try {
       const [s, sums, es, ss, skills] = await Promise.all([
         usageStatus(), usageSummaries(project || null), usageEvents(), governanceListScopes(), governanceCatalog(),
@@ -35,7 +35,7 @@ export function SkillUsage() {
     } catch (e) { if (id === requestId.current) setError(String(e)); }
     finally { if (id === requestId.current) setLoading(false); }
   }, [project]);
-  useEffect(() => { void reload(); return () => { requestId.current += 1; }; }, [reload]);
+  useEffect(() => { void reload(); const timer=window.setInterval(() => void reload(),30000); return () => { window.clearInterval(timer); requestId.current += 1; }; }, [reload]);
   const rows = useMemo(() => summaries.filter(s => s.window_days === days).sort((a, b) => b.events - a.events), [summaries, days]);
   const totals = useMemo(() => rows.reduce((a, r) => ({ explicit: a.explicit + r.explicit, declared: a.declared + r.declared, inferred: a.inferred + r.inferred }), { explicit: 0, declared: 0, inferred: 0 }), [rows]);
   const visibleEvents = events.filter(e => (!project || e.project === project) && e.occurred_at >= Date.now() / 1000 - days * 86400);
@@ -68,9 +68,9 @@ export function SkillUsage() {
     {error && <div role="alert" className="app-panel p-4 text-[13px] text-red-600 dark:text-red-400">{error}</div>}
     <div className="app-panel p-4 space-y-3">
       <div className="flex items-center gap-2 text-[14px] font-medium"><Database className="h-4 w-4" />数据覆盖 <span className="text-[12px] text-tertiary">{loading ? '正在检查…' : status?.nmem_available ? 'nmem 已连接' : 'nmem 未连接'}</span></div>
-      <p className="text-[13px] text-secondary">频率按「技能 × 来源会话」去重，是已采集证据的数量。声明使用不代表执行成功；没有记录不代表没用过。</p>
-      <p className="text-[12px] text-tertiary">本地采集只读扫描最近 100 份 Codex／Claude 日志；nmem 每次有界读取一个匹配片段。均不代表全量历史。本页展示最近 200 条证据。</p>
-      <button className="app-button-primary" onClick={() => void collectLocal()} disabled={busy || loading}>{busy ? '正在采集…' : '采集本地使用记录'}</button>
+      <p className="text-[13px] text-secondary">频率按「技能 × 来源会话」去重，是已采集证据的数量。调用次数包含失败尝试；成功/失败与产物见项目工作台。声明使用不代表执行成功；没有记录不代表没用过。</p>
+      <p className="text-[12px] text-tertiary">应用运行时每分钟自动采集近期 Codex／Claude 日志，每十分钟从 nmem 核对最近使用技能的历史。AI 执行桥接实时记录；本页每 30 秒刷新，历史覆盖仍有界。</p>
+      <button className="app-button-primary" onClick={() => void collectLocal()} disabled={busy || loading}>{busy ? '正在采集…' : '立即同步本地记录'}</button>
       <div className="flex flex-wrap gap-3">
         <label className="text-[12px] text-secondary flex items-center gap-2">项目<select aria-label="统计项目" className="app-input" value={project} onChange={e => setProject(e.target.value)} disabled={busy}><option value="">全部项目</option>{scopes.filter(s => s.kind === 'project').map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className="text-[12px] text-secondary flex items-center gap-2">时间<select aria-label="统计时间" className="app-input" value={days} onChange={e => setDays(Number(e.target.value))}>{[7, 30, 90].map(d => <option key={d} value={d}>近 {d} 天</option>)}</select></label>
@@ -79,8 +79,8 @@ export function SkillUsage() {
     <div className="grid grid-cols-3 gap-3">
       {([['明确调用', totals.explicit], ['声明使用', totals.declared], ['读取推断', totals.inferred]] as const).map(([label, count]) => <div key={label} className="app-panel p-4"><p className="text-[12px] text-secondary">{label}</p><p className="text-[17px] font-semibold mt-2">{count}</p></div>)}
     </div>
-    <section className="app-panel p-4 space-y-3">
-      <h2 className="text-[14px] font-medium flex items-center gap-2"><Search className="h-4 w-4" />从 nmem 核对历史</h2>
+    <details className="app-panel p-4 space-y-3">
+      <summary className="text-[14px] font-medium cursor-pointer"><Search className="h-4 w-4 inline mr-2" />补充核对 nmem 历史</summary>
       <p className="text-[12px] text-tertiary">沿用 nmem 当前身份和 Space，只读查询。选择项目表示你确认这次导入证据的项目归属。</p>
       <div className="flex flex-wrap gap-2">
         <select aria-label="核对技能" className="app-input flex-1 min-w-48" value={skill} onChange={e => setSkill(e.target.value)} disabled={busy}><option value="">选择技能</option>{[...new Set(catalog.map(s => s.name))].sort().map(name => <option key={name} value={name}>{name}</option>)}</select>
@@ -88,10 +88,10 @@ export function SkillUsage() {
         <button className="app-button-primary" onClick={() => void collect()} disabled={!skill || busy || !status?.nmem_available}>{busy ? '正在核对…' : '检索并导入'}</button>
       </div>
       {notice && <p role="status" className="text-[13px] text-secondary">{notice}</p>}
-    </section>
+    </details>
     <section className="app-panel overflow-x-auto">
       <h2 className="text-[14px] font-medium p-4 flex items-center gap-2"><BarChart3 className="h-4 w-4" />近 {days} 天技能频率</h2>
-      {loading ? <p className="p-4 text-[13px] text-tertiary">正在读取…</p> : rows.length ? <table className="w-full text-left text-[13px]"><thead className="text-[12px] text-tertiary border-y border-border-subtle"><tr>{['技能', '项目', '证据数', '明确 / 声明 / 推断', '最近证据'].map(h => <th key={h} className="p-3 font-medium">{h}</th>)}</tr></thead><tbody>{rows.map(r => <tr key={`${r.skill}:${r.project}`} className="border-b border-border-subtle"><td className="p-3 break-all">{r.skill}</td><td className="p-3">{projectName(r.project)}</td><td className="p-3">{r.events}</td><td className="p-3">{r.explicit} / {r.declared} / {r.inferred}</td><td className="p-3 whitespace-nowrap text-[12px]">{date(r.last_used_at)}</td></tr>)}</tbody></table> : <p className="p-4 text-[13px] text-tertiary">当前范围还没有使用证据。先选择技能，从 nmem 核对历史。</p>}
+      {loading ? <p className="p-4 text-[13px] text-tertiary">正在读取…</p> : rows.length ? <table className="w-full text-left text-[13px]"><thead className="text-[12px] text-tertiary border-y border-border-subtle"><tr>{['技能', '项目', '证据数', '明确 / 声明 / 推断', '最近证据'].map(h => <th key={h} className="p-3 font-medium">{h}</th>)}</tr></thead><tbody>{rows.map(r => <tr key={`${r.skill}:${r.project}`} className="border-b border-border-subtle"><td className="p-3 break-all">{r.skill}</td><td className="p-3">{projectName(r.project)}</td><td className="p-3">{r.events}</td><td className="p-3">{r.explicit} / {r.declared} / {r.inferred}</td><td className="p-3 whitespace-nowrap text-[12px]">{date(r.last_used_at)}</td></tr>)}</tbody></table> : <p className="p-4 text-[13px] text-tertiary">当前范围还没有使用证据。完成项目任务后会自动汇入。</p>}
     </section>
     <section className="app-panel p-4 space-y-3"><h2 className="text-[14px] font-medium">原始证据</h2>{visibleEvents.length ? visibleEvents.map(e => <details key={e.id} className="border-t border-border-subtle pt-3"><summary className="cursor-pointer text-[13px]">{e.skill} · {labels[e.evidence]} · {date(e.occurred_at)}</summary><div className="mt-3 space-y-2 text-[12px] text-secondary"><p>项目：{projectName(e.project)} · Agent：{e.agent || '未知'} · 来源：{e.source}</p><p className="break-all">对话：{e.source_ref || e.session_id || '未提供'}</p><p className="whitespace-pre-wrap break-words">{e.excerpt || '未保存片段'}</p></div></details>) : <p className="text-[13px] text-tertiary">当前范围没有可展示的原文片段。</p>}</section>
   </div>;

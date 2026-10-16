@@ -834,6 +834,7 @@ pub fn run() {
                 .build(),
         )
         .setup(move |app| {
+            core::workflow::start();
             // Snapshot the builder->setup gap BEFORE doing any work in setup,
             // so the label reflects only the time Tauri spent constructing
             // the App between Builder::default() and invoking this callback.
@@ -1021,6 +1022,9 @@ pub fn run() {
             commands::usage::usage_events,
             commands::usage::usage_import_nmem,
             commands::usage::usage_import_local,
+            commands::workflow::workflow_snapshot,
+            commands::workflow::workflow_refresh,
+            commands::workflow::workflow_recommend,
             // Tools
             commands::tools::get_tool_status,
             commands::tools::set_tool_enabled,

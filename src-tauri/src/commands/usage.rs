@@ -33,17 +33,12 @@ pub async fn usage_import_nmem(request: NmemImportRequest) -> Result<ImportResul
 }
 
 #[tauri::command]
-pub async fn usage_import_local(
-    store: tauri::State<'_, std::sync::Arc<crate::core::skill_store::SkillStore>>,
-) -> Result<crate::core::usage_local::LocalImportResult, AppError> {
-    let skills = store
-        .get_all_skills()
-        .map_err(AppError::db)?
-        .into_iter()
-        .map(|s| s.name)
-        .collect();
-    tauri::async_runtime::spawn_blocking(move || crate::core::usage_local::import(skills))
-        .await
-        .map_err(AppError::db)?
-        .map_err(AppError::db)
+pub async fn usage_import_local() -> Result<crate::core::usage_local::LocalImportResult, AppError> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let skills = crate::core::workflow::names().map_err(|e| e.to_string())?;
+        crate::core::usage_local::import(skills)
+    })
+    .await
+    .map_err(AppError::db)?
+    .map_err(AppError::db)
 }

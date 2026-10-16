@@ -1,6 +1,4 @@
-use crate::core::{central_repo, error::AppError, governance, skill_store::SkillStore};
-use std::sync::Arc;
-use tauri::State;
+use crate::core::{central_repo, error::AppError, governance, workflow};
 
 fn db() -> Result<rusqlite::Connection, AppError> {
     governance::open(&central_repo::base_dir().join("skills-governance.sqlite3"))
@@ -35,14 +33,15 @@ pub fn governance_attach_skill(
     skill_id: String,
     role: String,
     excluded: bool,
-    store: State<'_, Arc<SkillStore>>,
 ) -> Result<(), AppError> {
-    if store
-        .get_skill_by_id(&skill_id)
-        .map_err(AppError::db)?
-        .is_none()
+    let snapshot = workflow::call(&["snapshot"]).map_err(AppError::db)?;
+    if !snapshot["skills"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|s| s["id"].as_str() == Some(&skill_id))
     {
-        return Err(AppError::db(anyhow::anyhow!("skill not found")));
+        return Err(AppError::invalid_input("skill not found in live catalog"));
     }
     governance::attach(&db()?, &scope_id, &skill_id, &role, excluded).map_err(AppError::db)
 }
@@ -67,8 +66,6 @@ pub fn governance_effective_skills(
 }
 
 #[tauri::command]
-pub fn governance_catalog(
-    store: State<'_, Arc<SkillStore>>,
-) -> Result<Vec<crate::core::skill_store::SkillRecord>, AppError> {
-    store.get_all_skills().map_err(AppError::db)
+pub fn governance_catalog() -> Result<serde_json::Value, AppError> {
+    Ok(workflow::call(&["snapshot"]).map_err(AppError::db)?["skills"].clone())
 }

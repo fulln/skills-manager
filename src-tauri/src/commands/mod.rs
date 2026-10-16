@@ -10,3 +10,4 @@ pub mod skills;
 pub mod sync;
 pub mod tools;
 pub mod usage;
+pub mod workflow;

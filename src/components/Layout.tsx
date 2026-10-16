@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { Sidebar } from "./Sidebar";
+import { WorkflowSidebar as Sidebar } from "./WorkflowSidebar";
 import { StatusBanner } from "./StatusBanner";
 import { CommandPalette } from "./CommandPalette";
 import { useApp } from "../context/AppContext";
@@ -55,7 +55,7 @@ export function Layout() {
               />
             ) : null}
             <div className="app-panel px-4 py-3 text-[12px] text-secondary" role="status">
-              Skills Manager Dev · 独立数据与技能副本 · 项目层级仅管理元数据，不会修改项目目录；正式库部署、删除和备份操作已隔离。
+              Skills Manager Dev · 已连接现有项目与技能库 · AI 任务选择与执行记录自动汇入开发版。
             </div>
             <Outlet />
           </div>
