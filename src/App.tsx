@@ -14,6 +14,8 @@ import { InstallSkills } from "./views/InstallSkills";
 import { Settings } from "./views/Settings";
 import { ProjectDetail } from "./views/ProjectDetail";
 import { Backup } from "./views/Backup";
+import { SkillGovernance } from "./views/SkillGovernance";
+import { SkillUsage } from "./views/SkillUsage";
 
 function ThemedToaster() {
   const { resolvedTheme } = useThemeContext();
@@ -39,7 +41,10 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<SkillGovernance />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/skill-governance" element={<SkillGovernance />} />
+              <Route path="/skill-usage" element={<SkillUsage />} />
               <Route path="/my-skills" element={<MySkills />} />
               <Route path="/global-workspace" element={<WorkspaceView config={CODING_WORKSPACE_CONFIG} />} />
               <Route path="/global-workspace/:agentKey" element={<WorkspaceView config={CODING_WORKSPACE_CONFIG} />} />

@@ -1,3 +1,19 @@
+# Skills Manager Dev — fulln fork
+
+This development branch adds project skill hierarchy and evidence-based usage
+statistics to the upstream Skills Manager desktop app. It uses an independent
+application ID and data directory; the existing production library stays separate.
+
+- Global / domain / project inheritance, role overrides, exclusions and reset.
+- Read-only Codex / Claude log collection plus bounded nmem history imports.
+- Rolling 7 / 30 / 90 day evidence counts with source provenance.
+- Production deployment / deletion / backup commands are blocked in this first build.
+
+See [development and isolation notes](DEVELOPMENT.md) and [verification](VERIFICATION.md).
+The upstream MIT license and original documentation below are retained.
+
+---
+
 <p align="center">
   <img src="assets/icon.png" width="80" />
 </p>

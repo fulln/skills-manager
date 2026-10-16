@@ -207,8 +207,16 @@ fn collect_tray_menu_data(store: &core::skill_store::SkillStore) -> TrayMenuData
 }
 
 fn format_status_line(data: &TrayMenuData) -> String {
-    let skill_label = if data.total_skills == 1 { "skill" } else { "skills" };
-    let agent_label = if data.coding_agent_count == 1 { "agent" } else { "agents" };
+    let skill_label = if data.total_skills == 1 {
+        "skill"
+    } else {
+        "skills"
+    };
+    let agent_label = if data.coding_agent_count == 1 {
+        "agent"
+    } else {
+        "agents"
+    };
     format!(
         "{} {} · {} {} connected",
         data.total_skills, skill_label, data.coding_agent_count, agent_label
@@ -242,7 +250,11 @@ fn preset_menu_item_id(preset: &TrayPresetEntry) -> (String, &'static str) {
 }
 
 fn preset_menu_label(preset: &TrayPresetEntry) -> String {
-    let unit = if preset.skill_count == 1 { "skill" } else { "skills" };
+    let unit = if preset.skill_count == 1 {
+        "skill"
+    } else {
+        "skills"
+    };
     match preset.status() {
         TrayPresetStatus::Active => format!("✓ {} ({} {unit})", preset.name, preset.skill_count),
         TrayPresetStatus::Partial => format!(
@@ -570,7 +582,9 @@ fn check_updates_from_tray<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
                 {
                     Ok(lock) => lock,
                     Err(err) => {
-                        log::warn!("Tray update check: failed to acquire repo lock for {skill_id}: {err}");
+                        log::warn!(
+                            "Tray update check: failed to acquire repo lock for {skill_id}: {err}"
+                        );
                         continue;
                     }
                 };
@@ -772,10 +786,7 @@ pub fn restart_app(app: &tauri::AppHandle) {
 fn teardown_before_exit(app: &tauri::AppHandle) {
     QUITTING.store(true, Ordering::SeqCst);
     let _ = app.save_window_state(
-        StateFlags::SIZE
-            | StateFlags::POSITION
-            | StateFlags::MAXIMIZED
-            | StateFlags::FULLSCREEN,
+        StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED | StateFlags::FULLSCREEN,
     );
     if let Some(w) = app.get_webview_window("main") {
         if let Err(err) = w.destroy() {
@@ -785,7 +796,8 @@ fn teardown_before_exit(app: &tauri::AppHandle) {
     // 退出前 auto-backup (§3.4): local commit only, fail-fast on a busy lock,
     // after the window is gone so quitting feels instant.
     if let Some(store) = app.try_state::<Arc<core::skill_store::SkillStore>>() {
-        core::auto_backup::commit_on_exit(&store);
+        // Do not commit or push development data on exit.
+        let _ = store;
     }
 }
 
@@ -810,7 +822,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(
@@ -901,7 +913,7 @@ pub fn run() {
             // bridge for everyone if the two ever drifted apart.
             tauri::async_runtime::spawn_blocking(|| {
                 let step = Instant::now();
-                core::cli_bridge::ensure_bridge(env!("CARGO_PKG_VERSION"));
+                // Development fork never publishes a production agent CLI bridge.
                 log::info!(
                     "startup: cli bridge step done in {} ms",
                     step.elapsed().as_millis()
@@ -927,7 +939,7 @@ pub fn run() {
             );
 
             let step = Instant::now();
-            core::skill_auto_updater::start(app.handle().clone(), store_for_setup.clone());
+            // Skill auto-updates are disabled in the independent development build.
             log::info!(
                 "startup: skill auto-updater spawned in {} ms",
                 step.elapsed().as_millis()
@@ -947,21 +959,13 @@ pub fn run() {
             // Automatic backup (§3.4): debounced commit+push after central-repo
             // changes; the first round also uploads whatever the exit-time
             // commit captured last session.
-            core::auto_backup::start(app.handle().clone(), store_for_setup.clone());
+            // Automatic remote backup is disabled for development data.
 
             // One-time (idempotent) security migration: move credentials
             // embedded in the backup remote URL into the OS keychain so no
             // token stays in `.git/config`. Best-effort in the background —
             // offline machines retry on the next launch.
-            let store_for_cred_migration = store_for_setup.clone();
-            tauri::async_runtime::spawn_blocking(move || {
-                match commands::git_backup::migrate_embedded_credentials(&store_for_cred_migration)
-                {
-                    Ok(Some(_)) => log::info!("startup: migrated backup token to OS keychain"),
-                    Ok(None) => {}
-                    Err(e) => log::warn!("startup: backup credential migration skipped: {e:#}"),
-                }
-            });
+            // Development builds never migrate credentials into the shared OS keychain.
 
             // Intercept window close — let frontend decide (close vs hide to tray)
             // When QUITTING is set, allow the close to proceed so the process fully exits.
@@ -999,7 +1003,24 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(|invoke: tauri::ipc::Invoke<tauri::Wry>| {
+            if !core::dev_policy::command_allowed(invoke.message.command()) {
+                invoke.resolver.reject("独立开发版暂不开放原有部署、删除或备份写操作；请在项目层级页管理独立元数据。");
+                return true;
+            }
+            let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
+            commands::governance::governance_list_scopes,
+            commands::governance::governance_add_scope,
+            commands::governance::governance_reparent_scope,
+            commands::governance::governance_attach_skill,
+            commands::governance::governance_remove_skill,
+            commands::governance::governance_effective_skills,
+            commands::governance::governance_catalog,
+            commands::usage::usage_status,
+            commands::usage::usage_summaries,
+            commands::usage::usage_events,
+            commands::usage::usage_import_nmem,
+            commands::usage::usage_import_local,
             // Tools
             commands::tools::get_tool_status,
             commands::tools::set_tool_enabled,
@@ -1134,7 +1155,9 @@ pub fn run() {
             commands::projects::reorder_projects,
             commands::presets::get_preset_skill_order,
             commands::presets::reorder_preset_skills,
-        ])
+            ];
+            handler(invoke)
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {

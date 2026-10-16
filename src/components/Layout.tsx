@@ -54,6 +54,9 @@ export function Layout() {
                 tone="danger"
               />
             ) : null}
+            <div className="app-panel px-4 py-3 text-[12px] text-secondary" role="status">
+              Skills Manager Dev · 独立数据与技能副本 · 项目层级仅管理元数据，不会修改项目目录；正式库部署、删除和备份操作已隔离。
+            </div>
             <Outlet />
           </div>
         </div>

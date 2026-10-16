@@ -16,6 +16,8 @@ import {
   Link2,
   ChevronDown,
   ChevronRight,
+  Network,
+  BarChart3,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -165,7 +167,9 @@ export function Sidebar() {
   };
 
   const NAV_ITEMS = [
-    { name: t("sidebar.dashboard"), path: "/", icon: LayoutDashboard },
+    { name: "项目层级", path: "/skill-governance", icon: Network },
+    { name: "使用统计", path: "/skill-usage", icon: BarChart3 },
+    { name: t("sidebar.dashboard"), path: "/dashboard", icon: LayoutDashboard },
     { name: t("sidebar.mySkills"), path: "/my-skills", icon: Layers },
     { name: t("sidebar.installSkills"), path: "/install", icon: Download },
     { name: t("sidebar.backup"), path: "/backup", icon: CloudUpload },

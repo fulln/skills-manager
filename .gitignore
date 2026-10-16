@@ -38,3 +38,11 @@ CLAUDE.md
 AGENTS.md
 .loop-log
 
+
+# Independent development runtime, private evidence, and snapshots
+.dev-data/
+.dev-reports/
+src-tauri/target-x86/
+**/__pycache__/
+work/
+.omx/

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -90,6 +90,66 @@ fn default_base_dir() -> PathBuf {
     home_base_dir()
 }
 
+/// Development builds use a hermetic app-data namespace and never touch the
+/// production skills-manager library. The environment override is useful for
+/// tests and local smoke runs.
+pub fn is_isolated_dev() -> bool {
+    cfg!(not(test)) || std::env::var_os("SKILLS_MANAGER_DEV_ROOT").is_some()
+}
+
+pub fn dev_root() -> PathBuf {
+    let root=std::env::var_os("SKILLS_MANAGER_DEV_ROOT").map(PathBuf::from).unwrap_or_else(|| {
+        dirs::data_local_dir().or_else(dirs::data_dir).unwrap_or_else(std::env::temp_dir).join("skills-manager-dev")
+    });
+    assert!(root.is_absolute(), "SKILLS_MANAGER_DEV_ROOT must be absolute");
+    let resolved=resolve_existing_ancestor(&root);
+    if let Some(home)=dirs::home_dir(){
+        let home=resolve_existing_ancestor(&home);
+        assert!(!home.starts_with(&resolved), "Development root cannot be the home directory or its ancestor");
+        for protected in [home.join(".skills-manager"),home.join(".codex"),home.join(".claude"),home.join(".agents")]{
+            let protected=resolve_existing_ancestor(&protected);
+            assert!(!resolved.starts_with(&protected)&&!protected.starts_with(&resolved), "Development root overlaps a production agent or skill directory");
+        }
+    }
+    root
+}
+
+fn resolve_existing_ancestor(path:&Path)->PathBuf {
+    let mut existing=path.to_path_buf();let mut suffix=Vec::new();
+    while !existing.exists(){
+        if let Some(name)=existing.file_name(){suffix.push(name.to_os_string());}
+        if !existing.pop(){break;}
+    }
+    let mut resolved=existing.canonicalize().unwrap_or(existing);
+    for name in suffix.iter().rev(){resolved.push(name);}
+    resolved
+}
+
+pub fn validate_dev_path(root:&Path,path:&Path)->Result<()> {
+    anyhow::ensure!(path.is_absolute(), "Sandbox writes require absolute paths");
+    anyhow::ensure!(!path.components().any(|part| matches!(part,Component::ParentDir)), "Sandbox writes cannot traverse parent directories");
+    let candidate=resolve_existing_ancestor(path);
+    let root=resolve_existing_ancestor(root);
+    anyhow::ensure!(candidate.starts_with(root), "Development write is outside its sandbox: {}",path.display());
+    Ok(())
+}
+
+pub fn effective_home_dir() -> PathBuf {
+    if is_isolated_dev() {
+        dev_root().join("home")
+    } else {
+        dirs::home_dir().expect("Cannot determine home directory")
+    }
+}
+
+/// Reject paths outside the development sandbox. Existing symlinks are
+/// canonicalized so an apparently safe path cannot redirect writes into the
+/// production library.
+pub fn ensure_dev_path_allowed(path: &Path) -> Result<()> {
+    if is_isolated_dev() {validate_dev_path(&dev_root(),path)?;}
+    Ok(())
+}
+
 /// `~/.skills-manager`, ignoring any configured relocation.
 ///
 /// The library can be moved anywhere the user likes, but a few things must
@@ -103,6 +163,9 @@ pub fn home_base_dir() -> PathBuf {
         .clone()
     {
         return path.join(".skills-manager");
+    }
+    if is_isolated_dev() {
+        return dev_root().join("library");
     }
     dirs::home_dir()
         .expect("Cannot determine home directory")
@@ -118,6 +181,9 @@ pub(crate) fn set_test_home_dir_override(path: Option<PathBuf>) {
 }
 
 fn config_file_path() -> PathBuf {
+    if is_isolated_dev() {
+        return dev_root().join("config").join(CONFIG_FILE_NAME);
+    }
     dirs::config_dir()
         .unwrap_or_else(default_base_dir)
         .join("skills-manager")
@@ -268,6 +334,12 @@ fn base_dir_override_active() -> bool {
 }
 
 pub fn set_runtime_base_dir_override(path: Option<PathBuf>) {
+    if let Some(ref path) = path {
+        if let Err(err) = ensure_dev_path_allowed(path) {
+            log::warn!("ignoring unsafe development path override: {err}");
+            return;
+        }
+    }
     *BASE_DIR_OVERRIDE
         .get_or_init(|| Mutex::new(None))
         .lock()
@@ -275,6 +347,12 @@ pub fn set_runtime_base_dir_override(path: Option<PathBuf>) {
 }
 
 pub fn set_runtime_skills_dir_override(path: Option<PathBuf>) {
+    if let Some(ref path) = path {
+        if let Err(err) = ensure_dev_path_allowed(path) {
+            log::warn!("ignoring unsafe development skills path override: {err}");
+            return;
+        }
+    }
     *SKILLS_DIR_OVERRIDE
         .get_or_init(|| Mutex::new(None))
         .lock()
@@ -335,7 +413,11 @@ pub fn external_base_dir(skills_root: &Path) -> PathBuf {
     let mut hasher = Sha256::new();
     hasher.update(canonical.to_string_lossy().as_bytes());
     let digest = hasher.finalize();
-    let short_hash: String = digest.iter().take(5).map(|b| format!("{:02x}", b)).collect();
+    let short_hash: String = digest
+        .iter()
+        .take(5)
+        .map(|b| format!("{:02x}", b))
+        .collect();
     default_base_dir()
         .join("external")
         .join(format!("{}-{}", sanitize_dir_name(name), short_hash))
@@ -411,6 +493,7 @@ pub fn set_base_dir_override(path: Option<String>) -> Result<PathBuf> {
         Some(raw) => (normalize_path(&raw)?, true),
         None => (default_base_dir(), false),
     };
+    ensure_dev_path_allowed(&next)?;
 
     config.repo_path = if persist_repo_path {
         Some(next.to_string_lossy().to_string())
@@ -572,7 +655,10 @@ fn move_by_copy(source: &Path, target: &Path) -> Result<()> {
     }
     let aside = source.with_file_name(format!(
         "{}.moved-{}",
-        source.file_name().and_then(|n| n.to_str()).unwrap_or("library"),
+        source
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("library"),
         chrono::Local::now().format("%Y%m%d-%H%M%S")
     ));
     if let Err(err) = fs::rename(source, &aside) {
@@ -781,6 +867,7 @@ pub fn take_repoint_from() -> Option<(PathBuf, PathBuf)> {
     }
     let config = load_config();
     let from = normalize_path(config.repoint_from.as_deref()?).ok()?;
+    if ensure_dev_path_allowed(&from).is_err() {return None;}
     Some((from, base_dir()))
 }
 
@@ -824,6 +911,11 @@ pub fn ensure_central_repo(allow_migration: bool) -> Result<()> {
         }
     };
 
+    if is_isolated_dev() {
+        ensure_dev_path_allowed(&requested_base_from(&config))?;
+        if let Some(from)=config.pending_migration_from.as_deref(){ensure_dev_path_allowed(Path::new(from))?;}
+    }
+
     // Only auto-migrate the app's own config-driven base. When a runtime base
     // override is active (CLI `--skills-root` / `--path`), the pending marker in
     // the shared config belongs to a different library and must not be applied
@@ -852,12 +944,13 @@ pub fn ensure_central_repo(allow_migration: bool) -> Result<()> {
     }
     // Re-resolve: a completed move changed the base.
     let current_base = base_dir();
+    ensure_dev_path_allowed(&current_base)?;
 
     // Legacy `.agent-skills` migration must run before create_dir_all below:
     // it renames entries into `current_base` and skips ones that already
     // exist, so pre-created empty dirs would silently swallow it (the old
     // ordering made this branch dead code).
-    let legacy_path = dirs::home_dir().map(|home| home.join(".agent-skills"));
+    let legacy_path = (!is_isolated_dev()).then(dirs::home_dir).flatten().map(|home| home.join(".agent-skills"));
     if let Some(old_path) = legacy_path {
         if old_path.exists() && !current_base.join("skills").exists() {
             log::info!("Migrating from old path {:?}", old_path);
@@ -1014,7 +1107,10 @@ mod tests {
 
         assert!(move_by_copy(&src, &dst).is_err());
 
-        assert!(!directory_has_entries(&dst).unwrap(), "retry must see an empty target");
+        assert!(
+            !directory_has_entries(&dst).unwrap(),
+            "retry must see an empty target"
+        );
         assert!(src.join("a/ok.txt").exists(), "source untouched");
         fs::set_permissions(src.join("z-unreadable"), fs::Permissions::from_mode(0o644)).unwrap();
     }
@@ -1048,7 +1144,10 @@ mod tests {
 
         assert!(matches!(outcome, MigrationOutcome::Proceed));
         assert_eq!(config.pending_migration_from, None);
-        assert_eq!(config.repoint_from.as_deref(), Some(gone.to_string_lossy().as_ref()));
+        assert_eq!(
+            config.repoint_from.as_deref(),
+            Some(gone.to_string_lossy().as_ref())
+        );
     }
 
     #[test]
@@ -1099,8 +1198,14 @@ mod tests {
         copy_dir_recursive(src.path(), &dst.path().join("out")).unwrap();
 
         let out = dst.path().join("out");
-        assert_eq!(fs::read_link(out.join("dir-link")).unwrap(), Path::new("real"));
-        assert_eq!(fs::read_link(out.join("file-link")).unwrap(), Path::new("real/f"));
+        assert_eq!(
+            fs::read_link(out.join("dir-link")).unwrap(),
+            Path::new("real")
+        );
+        assert_eq!(
+            fs::read_link(out.join("file-link")).unwrap(),
+            Path::new("real/f")
+        );
     }
 
     #[test]
@@ -1121,8 +1226,14 @@ mod tests {
             live_base_from(&config),
             normalize_path(&src.path().to_string_lossy()).unwrap()
         );
-        assert!(config.pending_migration_from.is_some(), "marker kept for retry");
-        assert_eq!(fs::read(dst.path().join("existing.txt")).unwrap(), b"dst-data");
+        assert!(
+            config.pending_migration_from.is_some(),
+            "marker kept for retry"
+        );
+        assert_eq!(
+            fs::read(dst.path().join("existing.txt")).unwrap(),
+            b"dst-data"
+        );
         assert_eq!(fs::read(src.path().join("a.txt")).unwrap(), b"src");
     }
 
@@ -1143,7 +1254,10 @@ mod tests {
         let outcome = migrate_repo_if_needed(&mut config, &link);
 
         assert!(matches!(outcome, MigrationOutcome::Proceed));
-        assert_eq!(config.pending_migration_from, None, "same-dir move clears marker");
+        assert_eq!(
+            config.pending_migration_from, None,
+            "same-dir move clears marker"
+        );
         // The real library is untouched.
         assert!(real.path().join("skills").exists());
     }
@@ -1204,8 +1318,11 @@ mod tests {
     fn config_state_valid_json_is_valid() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("repo-config.json");
-        fs::write(&path, r#"{ "repo_path": "/tmp/lib", "pending_migration_from": null }"#)
-            .unwrap();
+        fs::write(
+            &path,
+            r#"{ "repo_path": "/tmp/lib", "pending_migration_from": null }"#,
+        )
+        .unwrap();
         match load_config_state_from(&path) {
             ConfigState::Valid(config) => {
                 assert_eq!(config.repo_path.as_deref(), Some("/tmp/lib"));
@@ -1300,4 +1417,22 @@ mod tests {
         );
         assert_eq!(lexically_normalize(Path::new("/..")), PathBuf::from("/"));
     }
+
+    #[test]
+    fn isolated_dev_paths_never_use_production_library() {
+        if is_isolated_dev() {
+            assert!(home_base_dir().starts_with(dev_root()));
+            assert!(effective_home_dir().starts_with(dev_root()));
+            assert_ne!(
+                home_base_dir(),
+                dirs::home_dir().unwrap().join(".skills-manager")
+            );
+        }
+    }
+}
+
+#[cfg(test)] mod development_path_tests {
+    use super::*;
+    #[test] fn refuses_external_and_parent_traversal(){let d=tempfile::tempdir().unwrap();let root=d.path().join("dev");std::fs::create_dir(&root).unwrap();assert!(validate_dev_path(&root,&root.join("new/file")).is_ok());assert!(validate_dev_path(&root,&d.path().join("prod")).is_err());assert!(validate_dev_path(&root,&root.join("new/../../prod")).is_err());assert!(validate_dev_path(&root,Path::new("relative")).is_err());}
+    #[test] #[cfg(unix)] fn missing_children_cannot_escape_via_symlink(){let d=tempfile::tempdir().unwrap();let root=d.path().join("dev");let outside=d.path().join("outside");std::fs::create_dir(&root).unwrap();std::fs::create_dir(&outside).unwrap();std::os::unix::fs::symlink(&outside,root.join("link")).unwrap();assert!(validate_dev_path(&root,&root.join("link/new/skill")).is_err());}
 }
