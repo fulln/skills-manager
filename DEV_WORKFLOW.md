@@ -2,7 +2,7 @@
 
 This fork reads the existing Skills Manager catalog through its official JSON CLI. It automatically discovers existing Codex projects and repositories under `~/opt`, `~/opensource` and `~/Documents/ChatGPT`, plus project-local skills. Source skill instructions remain in their existing directories. Runtime data and installed bridge live under `~/Library/Application Support/skills-manager-dev`.
 
-The native home page now presents the current project, task recommendations, execution history and effective skills. Governance retains global → domain → project inheritance, exclusions and local overrides. Usage displays source evidence and rolling 7/30/90-day counts.
+The native home page presents the current project, temporary skill recommendations and effective skills. Task management lives elsewhere and no task history is displayed or recorded. Governance retains global → domain → project inheritance, exclusions and local overrides. Usage displays source evidence and rolling 7/30/90-day counts.
 
 ## AI integration
 
@@ -13,7 +13,9 @@ python3 skill_workflow.py recommend --project /absolute/project --task 'Analyze 
 python3 skill_workflow.py run --run-id RETURNED_ID --skill CANDIDATE_ID --artifact /absolute/new-report.md -- python3 report_script.py
 ```
 
-`recommend` refreshes the live catalog and records a selection. It returns at most five lexical candidates, paths and reasons. The host AI must read the skill and judge applicability. `run` executes an argv array without a shell in the actual project, checks current exclusions, records status and artifact hashes, and adds one explicit usage event. A failed attempt still counts as invocation; success is a separate run status. Existing unmodified artifacts do not establish successful output.
+`recommend` refreshes the live catalog and returns at most five lexical candidates. Its input description is used only in memory, never stored as a task. The host AI reads the skill and judges applicability. A single-use invocation ID holds only project, agent and candidate skill metadata for at most 24 hours; execution consumes it atomically. `run` executes argv without a shell, checks exclusions and returns outcome/artifact validation to its caller without storing commands, outputs, artifacts or results. Only an explicit skill usage event is persisted. Recommendation is not usage.
+
+Existing legacy `runs` data is left untouched but is never read, returned or appended by the current bridge. New databases do not create a task-history table.
 
 On this host, the existing `personal-skill-ops` skill and the managed sections of Codex/Claude/Pi instructions route suitable project tasks through this bridge. This is instruction-based routing, not interception of every AI action. New sessions read refreshed instructions; already-running agents must refresh their instructions. Direct terminal bridge calls work without the app open.
 
@@ -47,4 +49,4 @@ Reviewed from GitHub Trending and related discovery; no code or dependencies cop
 - https://github.com/ruvnet/ruflo — routing, execution outcomes and experience reuse.
 - https://github.com/yusing/skills-mgr — project effective selections and inspectable conditions.
 
-Next optimization work should use task outcome evidence and trigger diagnostics, rather than treating high frequency as proof of skill quality.
+Optimization should use skill usage evidence and trigger diagnostics. Any task outcomes needed for review come from the external systems already used by the owner; this app does not collect another task history. Frequency alone does not establish skill quality.

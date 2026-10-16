@@ -3,9 +3,9 @@ import { Activity, Network, BarChart3, Layers, Download, Bot, Settings } from 'l
 
 export function WorkflowSidebar() {
   return <aside className="w-[200px] shrink-0 border-r border-border-subtle bg-bg-secondary px-3 pb-4 pt-12 flex flex-col gap-5">
-    <div className="px-2"><p className="text-[14px] font-semibold">Skills Manager</p><p className="text-[12px] text-tertiary mt-1">个人开发版 · 已连接工作流</p></div>
+    <div className="px-2"><p className="text-[14px] font-semibold">Skills Manager</p><p className="text-[12px] text-tertiary mt-1">个人开发版 · 项目技能</p></div>
     <nav className="space-y-1">{[
-      { to: '/', label: '项目工作台', Icon: Activity, end: true },
+      { to: '/', label: '项目技能', Icon: Activity, end: true },
       { to: '/my-skills', label: '技能库管理', Icon: Layers },
       { to: '/install', label: '安装技能', Icon: Download },
       { to: '/global-workspace', label: 'Agent 工作区', Icon: Bot },

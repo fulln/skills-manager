@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small, isolated workflow bridge for the Skills Manager development copy."""
+"""Project skill discovery and invocation statistics without task tracking."""
 from __future__ import annotations
 import argparse, hashlib, json, os, re, sqlite3, subprocess, time, uuid, fcntl
 from contextlib import contextmanager
@@ -7,6 +7,7 @@ from pathlib import Path
 
 DEFAULT_ROOT = Path(os.environ.get("SKILLS_MANAGER_DEV_ROOT", Path.home()/"Library/Application Support/skills-manager-dev"))
 MAX_OUT = 4000
+INVOCATION_TTL = 24 * 60 * 60
 
 def now(): return int(time.time())
 def validate_root(root):
@@ -31,7 +32,7 @@ def db(root):
     c.executescript("""CREATE TABLE IF NOT EXISTS project_inputs(path TEXT PRIMARY KEY);
     CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,name TEXT,path TEXT UNIQUE,domain TEXT,skills_json TEXT);
     CREATE TABLE IF NOT EXISTS skills(id TEXT PRIMARY KEY,name TEXT,path TEXT,description TEXT,scope TEXT,project_id TEXT,role TEXT,tags TEXT);
-    CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY,project_id TEXT,project_path TEXT,task TEXT,agent TEXT,status TEXT,created_at INTEGER,finished_at INTEGER,selected_skills TEXT,command TEXT,exit_code INTEGER,artifacts TEXT,error TEXT);"""); return c
+    CREATE TABLE IF NOT EXISTS pending_invocations(id TEXT PRIMARY KEY,project_path TEXT,agent TEXT,created_at INTEGER,selected_skills TEXT);"""); return c
 def safe_id(s): return hashlib.sha256(str(s).encode()).hexdigest()[:20]
 def discover(home):
     import workflow_discovery
@@ -91,15 +92,10 @@ def refresh(root,home):
 
 def snapshot(root):
     c=db(root); rows=lambda q:[dict(zip([x[0] for x in c.execute(q).description],r)) for r in c.execute(q)]
-    ps=rows("SELECT id,name,path,domain FROM projects"); ss=rows("SELECT id,name,description,path,scope,project_id,role FROM skills"); runs=[]
-    for r in c.execute("SELECT * FROM runs ORDER BY created_at DESC"):
-        d=dict(zip([x[0] for x in c.execute('SELECT * FROM runs LIMIT 0').description],r))
-        for k in ('selected_skills','artifacts'): d[k]=json.loads(d[k] or '[]')
-        d['artifact_evidence']=d['artifacts']; d['artifacts']=[x['path'] if isinstance(x,dict) else x for x in d['artifacts']]
-        runs.append(d)
+    ps=rows("SELECT id,name,path,domain FROM projects"); ss=rows("SELECT id,name,description,path,scope,project_id,role FROM skills")
     syncv=json.loads((root/"sync.json").read_text()) if (root/"sync.json").exists() else {"running":False,"error":None,"project_count":len(ps),"skill_count":len(ss)}
     for p in ps: p["effective_skill_ids"]=[sid for sid,binding in effective(root,p['path']).items() if not binding[1]]; p["skill_count"]=len([x for x in ss if x['id'] in p['effective_skill_ids'] and (not x["project_id"] or x["project_id"]==p["id"])])
-    return {"projects":ps,"skills":ss,"runs":runs,"sync":syncv,"bridge_path":str(Path(__file__).resolve())}
+    return {"projects":ps,"skills":ss,"sync":syncv,"bridge_path":str(Path(__file__).resolve())}
 def score(skill,task):
     text=(skill['name']+' '+skill.get('description','')+' '+(skill.get('tags') or '')).lower()
     words=set(re.findall(r'[a-z0-9_-]{2,}',task.lower()))
@@ -141,35 +137,38 @@ def recommend(root,project,task,agent,home=None):
         n=score(s,task)
         if n: selected.append({"id":s['id'],"name":s['name'],"path":s['path'],"score":n,"reason":f"任务词匹配 {n} 分；"+("项目专用" if s["project_id"] else "继承技能"),"instructions":f"Read {Path(s['path'])/'SKILL.md'} before execution"})
     selected.sort(key=lambda x:(-x['score'],x['name'])); selected=selected[:5]
-    rid=str(uuid.uuid4()); c.execute("INSERT INTO runs(id,project_id,project_path,task,agent,status,created_at,selected_skills) VALUES(?,?,?,?,?,?,?,?)",(rid,p[0],p[2],task,agent,'selected',now(),json.dumps(selected))); c.commit(); return {"run_id":rid,"project_id":p[0],"candidates":selected,"instructions":"先读取候选的 SKILL.md，再依照技能完成授权任务。实际命令通过此桥接 run --run-id " + rid + " --skill <候选ID> --artifact <产物路径> -- <命令参数> 执行并记录；推荐本身不计作使用。"}
+    rid=str(uuid.uuid4())
+    # Only short-lived invocation metadata survives this process. Never persist
+    # the matching description or an execution command/result as a task record.
+    c.execute("DELETE FROM pending_invocations WHERE created_at<?",(now()-INVOCATION_TTL,))
+    if selected:
+        c.execute("INSERT INTO pending_invocations VALUES(?,?,?,?,?)",(rid,p[2],agent,now(),json.dumps(selected)))
+    c.commit(); c.close()
+    return {"run_id":rid,"project_id":p[0],"candidates":selected,"instructions":"先读取候选的 SKILL.md，再依照技能完成授权操作。实际命令通过此桥接 run --run-id " + rid + " --skill <候选ID> --artifact <产物路径> -- <命令参数> 执行；仅累计技能使用，不保存任务描述、命令或结果。推荐本身不计作使用。"}
 def run_cmd(root,rid,skill,argv,artifacts):
-    c=db(root); r=c.execute("SELECT * FROM runs WHERE id=?",(rid,)).fetchone()
-    if not r or r[5] != 'selected': raise SystemExit("run missing or already finished")
-    selected=json.loads(r[8] or '[]'); cand=next((x for x in selected if x['id']==skill or x['name']==skill),None)
-    binding=effective(root,r[2]).get(cand['id']) if cand else None
+    c=db(root)
+    r=c.execute("SELECT project_path,agent,selected_skills FROM pending_invocations WHERE id=? AND created_at>=?",(rid,now()-INVOCATION_TTL)).fetchone()
+    if not r: raise SystemExit("invocation missing, expired or already consumed")
+    project,agent,selected_json=r
+    selected=json.loads(selected_json or '[]'); cand=next((x for x in selected if x['id']==skill or x['name']==skill),None)
+    binding=effective(root,project).get(cand['id']) if cand else None
     if not cand or not binding or binding[1] or not (Path(cand['path'])/"SKILL.md").is_file(): raise SystemExit("skill is not a candidate or SKILL.md missing")
     if not argv: raise SystemExit("command required")
-    safe=[]; redact_next=False
-    for a in argv:
-        sensitive=bool(re.search(r"(token|secret|password|api[_-]?key|authorization)",a,re.I))
-        safe.append("<redacted>" if redact_next or sensitive else a)
-        redact_next=sensitive and '=' not in a
-    paths=[Path(a) if Path(a).is_absolute() else Path(r[2])/a for a in artifacts]
+    paths=[Path(a) if Path(a).is_absolute() else Path(project)/a for a in artifacts]
     before={str(q):q.stat().st_mtime_ns if q.is_file() else None for q in paths}
-    c.execute("UPDATE runs SET status='running',command=?,selected_skills=? WHERE id=? AND status='selected'",(json.dumps(safe),json.dumps([cand]),rid));
-    if c.total_changes != 1: raise SystemExit("run already claimed")
-    c.commit()
-    try: proc=subprocess.run(argv,cwd=r[2],shell=False,text=True,capture_output=True,timeout=3600)
-    except Exception as e: c.execute("UPDATE runs SET status='failed',finished_at=?,error=? WHERE id=?",(now(),type(e).__name__,rid)); c.commit(); raise
-    ev=[]
-    for q in paths:
-        ev.append({"path":str(q),"exists":q.is_file(),"updated":q.is_file() and q.stat().st_mtime_ns!=before[str(q)],"sha256":hashlib.sha256(q.read_bytes()).hexdigest() if q.is_file() else None})
-    status='succeeded' if proc.returncode==0 and all(x['exists'] and x['updated'] for x in ev) else ('succeeded' if proc.returncode==0 and not ev else 'failed')
-    c.execute("UPDATE runs SET status=?,finished_at=?,exit_code=?,artifacts=?,error=? WHERE id=?",(status,now(),proc.returncode,json.dumps(ev),'command failed' if proc.returncode else None,rid)); c.commit()
-    # Actual execution is the only source of explicit usage evidence.
+    # Atomic, single-use claim: competing callers cannot execute the same ID.
+    claimed=c.execute("DELETE FROM pending_invocations WHERE id=? AND created_at>=?",(rid,now()-INVOCATION_TTL)).rowcount
+    c.commit(); c.close()
+    if claimed != 1: raise SystemExit("invocation already consumed")
+    proc=subprocess.run(argv,cwd=project,shell=False,text=True,capture_output=True,timeout=3600)
+    updated=all(q.is_file() and q.stat().st_mtime_ns!=before[str(q)] for q in paths)
+    status='succeeded' if proc.returncode==0 and updated else 'failed'
+    # Actual execution is the only source of explicit usage evidence. No task,
+    # command, artifact or outcome details are written to the usage ledger.
     u=root/"library"/"usage-events.sqlite3"; u.parent.mkdir(parents=True,exist_ok=True); uc=sqlite3.connect(u); uc.executescript("PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS usage_events(id TEXT PRIMARY KEY,skill TEXT NOT NULL,project TEXT,agent TEXT,occurred_at INTEGER NOT NULL,session_id TEXT NOT NULL,evidence TEXT NOT NULL,source TEXT NOT NULL,source_ref TEXT,excerpt TEXT); CREATE UNIQUE INDEX IF NOT EXISTS usage_identity ON usage_events(source,session_id,skill); CREATE INDEX IF NOT EXISTS usage_time ON usage_events(occurred_at);")
-    uid=hashlib.sha256(("workflow|"+rid+"|"+skill).encode()).hexdigest(); uc.execute("INSERT OR IGNORE INTO usage_events VALUES(?,?,?,?,?,?,?,?,?,?)",(uid,cand['name'],project_scope(root,r[2]),r[4],now(),rid,'explicit_invocation','workflow',rid,'workflow run')); uc.commit(); uc.close()
+    uid=hashlib.sha256(("workflow|"+rid+"|"+skill).encode()).hexdigest(); uc.execute("INSERT OR IGNORE INTO usage_events VALUES(?,?,?,?,?,?,?,?,?,?)",(uid,cand['name'],project_scope(root,project),agent,now(),rid,'explicit_invocation','workflow',rid,'skill invocation')); uc.commit(); uc.close()
     print(json.dumps({"run_id":rid,"status":status,"exit_code":proc.returncode,"stdout":proc.stdout[-MAX_OUT:],"stderr":proc.stderr[-MAX_OUT:]})); return proc.returncode or (0 if status=="succeeded" else 1)
+
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--root',type=Path,default=DEFAULT_ROOT); ap.add_argument('--home',type=Path,default=Path.home())
     sp=ap.add_subparsers(dest='cmd',required=True); sp.add_parser('refresh'); sp.add_parser('snapshot')
