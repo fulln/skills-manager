@@ -156,7 +156,7 @@ def run_cmd(root,rid,skill,argv,artifacts):
         redact_next=sensitive and '=' not in a
     paths=[Path(a) if Path(a).is_absolute() else Path(r[2])/a for a in artifacts]
     before={str(q):q.stat().st_mtime_ns if q.is_file() else None for q in paths}
-    c.execute("UPDATE runs SET status='running',command=? WHERE id=? AND status='selected'",(json.dumps(safe),rid));
+    c.execute("UPDATE runs SET status='running',command=?,selected_skills=? WHERE id=? AND status='selected'",(json.dumps(safe),json.dumps([cand]),rid));
     if c.total_changes != 1: raise SystemExit("run already claimed")
     c.commit()
     try: proc=subprocess.run(argv,cwd=r[2],shell=False,text=True,capture_output=True,timeout=3600)

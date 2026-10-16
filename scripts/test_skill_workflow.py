@@ -42,4 +42,9 @@ class WorkflowTests(unittest.TestCase):
   argv=[sys.executable,str(SCRIPT),'--root',str(self.t/'db'),'--home',str(self.t),'refresh'];children=[subprocess.Popen(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE) for _ in range(3)]
   for p in children:
    out,err=p.communicate(timeout=25);self.assertEqual(p.returncode,0,err);self.assertEqual(len(json.loads(out)['projects']),1)
+ def test_execution_records_chosen_skill_not_all_candidates(self):
+  other=self.t/'opt/demo/.agents/skills/beta';other.mkdir();(other/'SKILL.md').write_text('beta alpha')
+  x=self.call('recommend','--project',str(self.t/'opt/demo'),'--task','alpha beta');self.assertEqual(len(x['candidates']),2)
+  subprocess.check_output([sys.executable,str(SCRIPT),'--root',str(self.t/'db'),'run','--run-id',x['run_id'],'--skill','alpha','--',sys.executable,'-c','pass'])
+  self.assertEqual([s['name'] for s in self.call('snapshot')['runs'][0]['selected_skills']],['alpha'])
 if __name__=='__main__': unittest.main()
