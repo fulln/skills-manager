@@ -32,6 +32,8 @@ def db(root):
     c.executescript("""CREATE TABLE IF NOT EXISTS project_inputs(path TEXT PRIMARY KEY);
     CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,name TEXT,path TEXT UNIQUE,domain TEXT,skills_json TEXT);
     CREATE TABLE IF NOT EXISTS skills(id TEXT PRIMARY KEY,name TEXT,path TEXT,description TEXT,scope TEXT,project_id TEXT,role TEXT,tags TEXT);
+    CREATE TABLE IF NOT EXISTS skill_provenance(skill_id TEXT PRIMARY KEY,metadata TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS skill_categories(canonical_path TEXT PRIMARY KEY,category TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS pending_invocations(id TEXT PRIMARY KEY,project_path TEXT,agent TEXT,created_at INTEGER,selected_skills TEXT);"""); return c
 def safe_id(s): return hashlib.sha256(str(s).encode()).hexdigest()[:20]
 def discover(home):
@@ -60,7 +62,30 @@ def sync(root,data):
     for p in data.get("projects",[]):
         pid=p.get("id") or safe_id(p["path"])
         for s in p.get("skills",[]): c.execute("INSERT OR REPLACE INTO skills VALUES(?,?,?,?,?,?,?,?)",(s.get("id") or safe_id(s["path"]),s.get("name") or Path(s["path"]).name,s["path"],s.get("description", ""),"project",pid,s.get("role", __import__("workflow_discovery")._role(s)),json.dumps(s.get("tags",[]))))
+    from skill_provenance import classify
+    metadata_by_path={}
+    for record in data.get("skills",[]):
+        metadata=record.get('_provenance') or classify(record)
+        metadata_by_path[metadata['canonical_path']]=metadata
+        c.execute('INSERT OR REPLACE INTO skill_provenance VALUES(?,?)',(record['id'],json.dumps(metadata,ensure_ascii=False)))
+    for project in data.get('projects',[]):
+        for record in project.get('skills',[]):
+            canonical=str(Path(record['path']).resolve())
+            metadata=metadata_by_path.get(canonical) or classify(record)
+            c.execute('INSERT OR REPLACE INTO skill_provenance VALUES(?,?)',(record['id'],json.dumps(metadata,ensure_ascii=False)))
     c.commit(); return c
+
+def set_category(root,skill_id,category):
+    if category not in ('auto','local_packaged','downloaded','downloaded_modified'):
+        raise ValueError('unknown skill category')
+    c=db(root)
+    row=c.execute('SELECT s.path,p.metadata FROM skills s LEFT JOIN skill_provenance p ON p.skill_id=s.id WHERE s.id=?',(skill_id,)).fetchone()
+    if not row: raise ValueError('skill not found in current catalog')
+    canonical=json.loads(row[1]).get('canonical_path') if row[1] else str(Path(row[0]).resolve())
+    if category=='auto': c.execute('DELETE FROM skill_categories WHERE canonical_path=?',(canonical,))
+    else: c.execute('INSERT OR REPLACE INTO skill_categories VALUES(?,?)',(canonical,category))
+    c.commit(); c.close(); return snapshot(root)
+
 def refresh_unlocked(root,home):
     validate_root(root)
     data=discover(home)
@@ -76,7 +101,7 @@ def refresh_unlocked(root,home):
         with db(root) as cached:
             cached.row_factory=sqlite3.Row
             for item in cached.execute('SELECT * FROM skills WHERE project_id IS NULL'):
-                record=dict(item);record['tags']=json.loads(record['tags'] or '[]');data['skills'].append(record)
+                record=dict(item);record['tags']=json.loads(record['tags'] or '[]');provenance=cached.execute('SELECT metadata FROM skill_provenance WHERE skill_id=?',(record['id'],)).fetchone();record['_provenance']=json.loads(provenance[0]) if provenance else None;data['skills'].append(record)
     try:
         import workflow_discovery
         workflow_discovery.sync_governance(root,data)
@@ -92,7 +117,17 @@ def refresh(root,home):
 
 def snapshot(root):
     c=db(root); rows=lambda q:[dict(zip([x[0] for x in c.execute(q).description],r)) for r in c.execute(q)]
-    ps=rows("SELECT id,name,path,domain FROM projects"); ss=rows("SELECT id,name,description,path,scope,project_id,role FROM skills")
+    ps=rows("SELECT id,name,path,domain FROM projects"); ss=rows("SELECT id,name,description,path,scope,project_id,role,tags FROM skills")
+    from skill_provenance import classify
+    categories=dict(c.execute('SELECT canonical_path,category FROM skill_categories'))
+    provenance={sid:json.loads(metadata) for sid,metadata in c.execute('SELECT skill_id,metadata FROM skill_provenance')}
+    for skill in ss:
+        metadata=provenance.get(skill['id']) or classify(skill)
+        skill.update(metadata)
+        skill['tags']=json.loads(skill['tags'] or '[]')
+        skill['detected_category']=metadata['category']
+        skill['category_override']=categories.get(metadata['canonical_path'])
+        skill['category']=skill['category_override'] or skill['detected_category']
     syncv=json.loads((root/"sync.json").read_text()) if (root/"sync.json").exists() else {"running":False,"error":None,"project_count":len(ps),"skill_count":len(ss)}
     for p in ps: p["effective_skill_ids"]=[sid for sid,binding in effective(root,p['path']).items() if not binding[1]]; p["skill_count"]=len([x for x in ss if x['id'] in p['effective_skill_ids'] and (not x["project_id"] or x["project_id"]==p["id"])])
     return {"projects":ps,"skills":ss,"sync":syncv,"bridge_path":str(Path(__file__).resolve())}
@@ -172,11 +207,13 @@ def run_cmd(root,rid,skill,argv,artifacts):
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--root',type=Path,default=DEFAULT_ROOT); ap.add_argument('--home',type=Path,default=Path.home())
     sp=ap.add_subparsers(dest='cmd',required=True); sp.add_parser('refresh'); sp.add_parser('snapshot')
+    category=sp.add_parser('set-category'); category.add_argument('--skill-id',required=True); category.add_argument('--category',required=True,choices=['auto','local_packaged','downloaded','downloaded_modified'])
     q=sp.add_parser('recommend'); q.add_argument('--project',required=True); q.add_argument('--task',required=True); q.add_argument('--agent',default='codex')
     r=sp.add_parser('run'); r.add_argument('--run-id',required=True); r.add_argument('--skill',required=True); r.add_argument('--artifact',action='append',default=[]); r.add_argument('command',nargs=argparse.REMAINDER)
     a=ap.parse_args(); root=validate_root(a.root)
     if a.cmd=='refresh': print(json.dumps(refresh(root,a.home),ensure_ascii=False)); return
     if a.cmd=='snapshot': print(json.dumps(snapshot(root),ensure_ascii=False)); return
+    if a.cmd=='set-category': print(json.dumps(set_category(root,a.skill_id,a.category),ensure_ascii=False)); return
     if a.cmd=='recommend': print(json.dumps(recommend(root,a.project,a.task,a.agent,a.home),ensure_ascii=False)); return
     if a.cmd=='run':
         argv=a.command[1:] if a.command and a.command[0]=='--' else a.command

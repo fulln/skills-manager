@@ -21,6 +21,10 @@ pub fn install() -> Result<std::path::PathBuf> {
             "workflow_discovery.py",
             include_str!("../../../scripts/workflow_discovery.py"),
         ),
+        (
+            "skill_provenance.py",
+            include_str!("../../../scripts/skill_provenance.py"),
+        ),
     ] {
         let path = dir.join(name);
         if fs::read_to_string(&path).ok().as_deref() != Some(content) {

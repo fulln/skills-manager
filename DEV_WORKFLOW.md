@@ -50,3 +50,11 @@ Reviewed from GitHub Trending and related discovery; no code or dependencies cop
 - https://github.com/yusing/skills-mgr — project effective selections and inspectable conditions.
 
 Optimization should use skill usage evidence and trigger diagnostics. Any task outcomes needed for review come from the external systems already used by the owner; this app does not collect another task history. Frequency alone does not establish skill quality.
+
+## Skill category cards
+
+The landing page groups physical skills into local packaged, downloaded, and downloaded with local changes. Category cards filter a searchable skill grid; project scope is optional and defaults to all projects. Mirrored paths are deduplicated with current-tagged managed records preferred.
+
+Source information comes from the official catalog plus read-only provenance fields in the CLI-reported database. Only a current content hash differing from the last managed download baseline establishes local changes. Remote revision differences alone are never treated as edits. Imports without remote evidence default to local with an explicit uncertainty note. Classification is correctable per card; overrides live in the Dev ledger, apply to physical-path aliases, survive discovery refresh, and can reset to automatic detection. Skill files are never moved or rewritten by classification.
+
+Existing skill details and deployment controls are reused. No task history was reintroduced. No new dependencies are required.

@@ -1,6 +1,6 @@
 import json, sqlite3, tempfile, unittest
 from pathlib import Path
-from workflow_discovery import discover, sync_governance
+from workflow_discovery import discover, sync_governance, _catalog
 
 class DiscoveryTests(unittest.TestCase):
     def setUp(self):
@@ -18,5 +18,10 @@ class DiscoveryTests(unittest.TestCase):
     def test_sync_global_and_local(self): sync_governance(self.root,self.d()); c=sqlite3.connect(self.root/'library/skills-governance.sqlite3'); self.assertEqual(c.execute('select count(*) from scope_skills').fetchone()[0],2)
     def test_sync_sources(self): sync_governance(self.root,self.d()); c=sqlite3.connect(self.root/'library/skills-governance.sqlite3'); self.assertEqual(c.execute('select count(*) from discovery_sources').fetchone()[0],2)
     def test_no_project_content_copy(self): self.assertNotIn('local\n',json.dumps(self.d()['skills']))
+
+    def test_cli_reported_database_supplies_baseline_without_writes(self):
+        database=self.root/'relocated-library.db';c=sqlite3.connect(database);c.execute('CREATE TABLE skills(id TEXT,content_hash TEXT,source_ref_resolved TEXT,source_revision TEXT,remote_revision TEXT)');c.execute("INSERT INTO skills VALUES('download','baseline','https://example.com/skill.git','old','new')");c.commit();c.close()
+        self.cli.write_text("import json,sys; print(json.dumps("+repr({'db_path':str(database)})+" if 'repo' in sys.argv else "+repr([{'id':'download','name':'download','path':str(self.p),'source_type':'git'}])+") )")
+        before=database.read_bytes();records,warnings=_catalog(str(self.cli));self.assertEqual(records[0]['content_hash'],'baseline');self.assertEqual(records[0]['source_revision'],'old');self.assertFalse(warnings);self.assertEqual(before,database.read_bytes())
 
 if __name__=='__main__': unittest.main()

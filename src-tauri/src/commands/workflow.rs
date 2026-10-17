@@ -40,3 +40,13 @@ pub async fn workflow_recommend(
 pub fn get_management_mode() -> bool {
     crate::core::central_repo::manages_existing_library()
 }
+
+#[tauri::command]
+pub async fn workflow_set_category(skill_id: String, category: String) -> Result<Value, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        workflow::call(&["set-category", "--skill-id", &skill_id, "--category", &category])
+    })
+    .await
+    .map_err(AppError::db)?
+    .map_err(AppError::db)
+}

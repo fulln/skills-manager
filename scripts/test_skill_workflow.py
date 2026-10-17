@@ -70,4 +70,18 @@ class WorkflowTests(unittest.TestCase):
   codes=[]
   for p in children:p.communicate(timeout=20);codes.append(p.returncode)
   self.assertEqual(sorted(codes),[0,1]);self.assertEqual(out.read_text(),'one\n')
+ def test_category_override_survives_refresh_and_auto_reset(self):
+  before=(self.t/'opt/demo/.agents/skills/alpha/SKILL.md').read_bytes();x=self.call('refresh');sid=x['skills'][0]['id']
+  changed=self.call('set-category','--skill-id',sid,'--category','downloaded_modified');self.assertEqual(changed['skills'][0]['category'],'downloaded_modified');self.assertEqual(changed['skills'][0]['detected_category'],'local_packaged')
+  self.assertEqual(self.call('refresh')['skills'][0]['category_override'],'downloaded_modified')
+  restored=self.call('set-category','--skill-id',sid,'--category','auto');self.assertEqual(restored['skills'][0]['category'],'local_packaged');self.assertIsNone(restored['skills'][0]['category_override']);self.assertEqual(before,(self.t/'opt/demo/.agents/skills/alpha/SKILL.md').read_bytes())
+  self.assertFalse((self.t/'db/library/usage-events.sqlite3').exists())
+ def test_unknown_skill_and_invalid_category_rejected(self):
+  x=self.call('refresh');sid=x['skills'][0]['id']
+  for skill,category in [('unknown','downloaded'),(sid,'invalid')]:
+   p=subprocess.run([sys.executable,str(SCRIPT),'--root',str(self.t/'db'),'set-category','--skill-id',skill,'--category',category],capture_output=True);self.assertNotEqual(p.returncode,0)
+ def test_same_physical_skill_shares_manual_category(self):
+  x=self.call('refresh');sid=x['skills'][0]['id'];c=sqlite3.connect(self.t/'db/workflow.sqlite3')
+  c.execute("INSERT INTO skills SELECT 'alias',name,path,description,scope,project_id,role,tags FROM skills WHERE id=?",(sid,));c.execute("INSERT INTO skill_provenance SELECT 'alias',metadata FROM skill_provenance WHERE skill_id=?",(sid,));c.commit()
+  result=self.call('set-category','--skill-id',sid,'--category','downloaded');self.assertEqual([s['category'] for s in result['skills']],['downloaded','downloaded'])
 if __name__=='__main__': unittest.main()

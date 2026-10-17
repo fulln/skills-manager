@@ -1024,6 +1024,7 @@ pub fn run() {
             commands::usage::usage_import_local,
             commands::workflow::get_management_mode,
             commands::workflow::workflow_snapshot,
+            commands::workflow::workflow_set_category,
             commands::workflow::workflow_refresh,
             commands::workflow::workflow_recommend,
             // Tools

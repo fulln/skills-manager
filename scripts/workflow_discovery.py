@@ -24,7 +24,7 @@ ROLE_WORDS = {"orchestration": ("workflow", "pipeline", "autopilot", "ops", "con
 def _canon(p: Path) -> Optional[Path]:
     try:
         return p.expanduser().resolve(strict=True)
-    except OSError:
+    except (OSError, RuntimeError):
         return None
 
 
@@ -37,7 +37,22 @@ def _skill_record(raw: dict[str, Any], *, local: bool = False, path: Optional[Pa
     return {"id": str(raw.get("id") or ("local-" + hashlib.sha256(str(path).encode()).hexdigest()[:16])),
             "name": name, "description": str(raw.get("description") or ""),
             "path": str(resolved_path), "skill_file": str(path or raw.get("skill_file") or ""), "tags": list(raw.get("tags") or []),
-            "deployed_to": list(raw.get("deployed_to") or []), "source": str(raw.get("source_type") or raw.get("source") or ("project-local" if local else ""))}
+            "deployed_to": list(raw.get("deployed_to") or []), "source": str(raw.get("source_type") or raw.get("source") or ("project-local" if local else "")),
+            **{k: raw.get(k) for k in ("source_type", "source_ref", "source_ref_resolved", "source_revision", "remote_revision", "content_hash")}}
+
+
+def _catalog_metadata(command: list[str]) -> dict[str, dict[str, Any]]:
+    """Read only provenance/hash fields from the library reported by the CLI."""
+    try:
+        proc = subprocess.run(command + ["--json", "repo", "status"], capture_output=True, text=True, timeout=15)
+        status = json.loads(proc.stdout) if proc.returncode == 0 else {}
+        path = Path(status.get("db_path", "")) if isinstance(status, dict) else Path()
+        if not path.is_file(): return {}
+        with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as connection:
+            connection.row_factory = sqlite3.Row
+            return {row["id"]: dict(row) for row in connection.execute("SELECT id,content_hash,source_ref_resolved,source_revision,remote_revision FROM skills")}
+    except (OSError, ValueError, sqlite3.Error, subprocess.SubprocessError):
+        return {}
 
 
 def _catalog(cli: str) -> tuple[list[dict[str, Any]], list[str]]:
@@ -49,7 +64,8 @@ def _catalog(cli: str) -> tuple[list[dict[str, Any]], list[str]]:
             raise RuntimeError(proc.stderr.strip() or "catalog command failed")
         data = json.loads(proc.stdout)
         if isinstance(data, dict): data = data.get("skills", data.get("items", []))
-        return [_skill_record(x) for x in data if isinstance(x, dict)], warnings
+        metadata = _catalog_metadata([cli] if not cli.endswith(".py") else [sys.executable, cli])
+        return [_skill_record({**metadata.get(str(x.get("id")), {}), **x}) for x in data if isinstance(x, dict)], warnings
     except Exception as exc:
         warnings.append("skills catalog unavailable: " + str(exc))
         return [], warnings
