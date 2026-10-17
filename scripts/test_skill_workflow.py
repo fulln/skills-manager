@@ -84,4 +84,17 @@ class WorkflowTests(unittest.TestCase):
   x=self.call('refresh');sid=x['skills'][0]['id'];c=sqlite3.connect(self.t/'db/workflow.sqlite3')
   c.execute("INSERT INTO skills SELECT 'alias',name,path,description,scope,project_id,role,tags FROM skills WHERE id=?",(sid,));c.execute("INSERT INTO skill_provenance SELECT 'alias',metadata FROM skill_provenance WHERE skill_id=?",(sid,));c.commit()
   result=self.call('set-category','--skill-id',sid,'--category','downloaded');self.assertEqual([s['category'] for s in result['skills']],['downloaded','downloaded'])
+ def test_usage_write_waits_for_a_competing_writer(self):
+  import time
+  first=self.call('recommend','--project',str(self.t/'opt/demo'),'--task','alpha')
+  def command(rid):return [sys.executable,str(SCRIPT),'--root',str(self.t/'db'),'run','--run-id',rid,'--skill','alpha','--',sys.executable,'-c','pass']
+  subprocess.check_output(command(first['run_id']))
+  second=self.call('recommend','--project',str(self.t/'opt/demo'),'--task','alpha')
+  connection=sqlite3.connect(self.t/'db/library/usage-events.sqlite3');connection.execute('BEGIN IMMEDIATE')
+  child=subprocess.Popen(command(second['run_id']),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+  try:
+   time.sleep(6)
+   self.assertIsNone(child.poll(),'live usage should wait instead of failing at the default 5-second lock timeout')
+  finally:connection.rollback();connection.close()
+  out,err=child.communicate(timeout=25);self.assertEqual(child.returncode,0,err);self.assertEqual(json.loads(out)['status'],'succeeded')
 if __name__=='__main__': unittest.main()

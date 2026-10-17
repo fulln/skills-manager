@@ -235,14 +235,13 @@ pub fn import(skills: Vec<String>) -> Result<LocalImportResult, String> {
     )
     .map_err(|e| e.to_string())?;
     let connection=usage::open()?;
-    connection.execute_batch("BEGIN IMMEDIATE").map_err(|e|e.to_string())?;
+    // Release the write lock between events instead of holding it while scanning logs.
     for (path, source, _) in paths.into_iter().take(100) {
         result.scanned_files += 1;
         if import_file(&connection, &path, source, &skills, &scopes, &mut result).is_err() {
             result.incomplete_files += 1;
         }
     }
-    connection.execute_batch("COMMIT").map_err(|e|e.to_string())?;
     Ok(result)
 }
 #[cfg(test)]
