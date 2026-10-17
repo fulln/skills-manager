@@ -17,13 +17,18 @@ assert.equal(hasNameVariants([{ name: 'alpha', path: '/a' }, { name: 'alpha', pa
 assert.equal(frequencyTier(0, 30), 'none');
 assert.equal(frequencyTier(1, 30), 'low');
 assert.equal(frequencyTier(4, 30), 'low');
-assert.equal(frequencyTier(5, 30), 'high');
-assert.equal(frequencyTier(1, 7), 'high');
+assert.equal(frequencyTier(5, 30), 'medium');
+assert.equal(frequencyTier(1, 7), 'medium');
 assert.equal(frequencyTier(12, 90), 'low');
-assert.equal(frequencyTier(13, 90), 'high');
+assert.equal(frequencyTier(13, 90), 'medium');
 assert.equal(frequencyTier(null, 30), 'unknown');
 assert.equal(frequencyTier(undefined, 30), 'unknown');
 assert.equal(frequencyTier(-1, 30), 'unknown');
 assert.equal(frequencyTier(NaN, 30), 'unknown');
 assert.equal(frequencyTier(1, 0), 'unknown');
-console.log('20 frequency boundary checks passed');
+for (const days of [7, 30, 90]) {
+  const high = Math.ceil(days * 3 / 7);
+  assert.equal(frequencyTier(high - 1, days), 'medium');
+  assert.equal(frequencyTier(high, days), 'high');
+}
+console.log('26 frequency boundary checks passed');

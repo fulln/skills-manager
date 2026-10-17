@@ -9,10 +9,11 @@ export interface SkillFrequency {
 }
 
 // Compare windows using the same weekly rate; declarations and reads never enter this calculation.
-export function frequencyTier(explicit: number | null | undefined, days: number): 'high' | 'low' | 'none' | 'unknown' {
+export function frequencyTier(explicit: number | null | undefined, days: number): 'high' | 'medium' | 'low' | 'none' | 'unknown' {
   if (typeof explicit !== 'number' || !Number.isFinite(explicit) || explicit < 0 || !Number.isFinite(days) || days <= 0) return 'unknown';
   if (explicit === 0) return 'none';
-  return explicit * 7 >= days ? 'high' : 'low';
+  if (explicit * 7 >= days * 3) return 'high';
+  return explicit * 7 >= days ? 'medium' : 'low';
 }
 
 // Summaries already deduplicate source/session/skill. Only sum one time window.
