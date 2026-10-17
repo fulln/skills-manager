@@ -15,7 +15,7 @@ export function SkillUsageFlow({ events, selectedId, onSelect }: { events: LiveU
   const selected = new Set(graph.eventRoutes.get(selectedId || '') || []);
   return <div aria-label="多个项目与技能的实时关联图" className="space-y-1">
     <div className="flex items-center justify-between gap-3 text-[11px] text-tertiary"><p>{graph.agents.length} 个 AI · {graph.projectCount} 个项目 · {graph.skills.length} 个技能 · {graph.routeCount} 组关系</p><p>点击节点看片段 · 同名技能合计</p></div>
-    <div className="max-h-[280px] overflow-auto rounded-lg border border-border-subtle bg-background p-2">
+    <div className="max-h-[480px] overflow-auto rounded-lg border border-border-subtle bg-background p-2">
       <div className="grid min-w-[680px] grid-cols-[18%_12%_28%_14%_28%] text-[11px] text-tertiary"><span>AI</span><span /><span>项目（按 AI 分组）</span><span /><span>Skill</span></div>
       <div className="relative min-w-[680px]" style={{ height }}>
         <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 1000 ${height}`} preserveAspectRatio="none" aria-hidden="true">

@@ -45,7 +45,7 @@ export function SkillConsole() {
   const selected = filtered.find(e => e.id === selectedId) || filtered[0] || null;
   return <section className="app-panel overflow-hidden" aria-label="技能控制台">
     <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)} className="flex items-center gap-2 text-[13px] font-semibold"><ChevronDown size={15} className={open ? 'rotate-180' : ''} />技能控制台 <span className="text-[11px] font-normal text-tertiary">{filtered.length} 条</span></button>
+      <button type="button" aria-expanded={open} onClick={() => setOpen(v => !v)} className="flex items-center gap-2 text-[13px] font-semibold"><ChevronDown size={15} className={open ? 'rotate-180' : ''} />关系与证据 <span className="text-[11px] font-normal text-tertiary">{filtered.length} 条</span></button>
       <div className="flex items-center gap-2 text-[11px] text-tertiary"><span role="status">{paused ? '已暂停' : checked ? `最近检查 ${date(checked)}` : '正在连接本地日志'} · 完成后30秒再检查</span>{open && <><button type="button" aria-label="立即刷新控制台" title="立即刷新控制台" disabled={paused} className="app-icon-button" onClick={() => refresh.current?.()}><RefreshCw size={14} /></button><button type="button" aria-label={paused ? '继续采集' : '暂停采集'} className="app-icon-button" onClick={() => setPaused(v => !v)}>{paused ? <Play size={14} /> : <Pause size={14} />}</button><button type="button" aria-label="清空显示" className="app-icon-button" onClick={() => { setSelectedId(null); setBuffer(prev => clearLiveUsage(prev)); }}><Trash2 size={14} /></button></>}</div>
     </div>
     {open && <div className="border-t border-border-subtle px-4 py-3 space-y-2">

@@ -68,7 +68,7 @@ export function Layout() {
                   ? "Skills Manager Dev · 隔离开发模式 · 当前操作不会修改正式技能库。"
                   : "Skills Manager Dev · 正在确认管理模式…"}
             </div>
-            {location.pathname !== '/' && location.pathname !== '/settings' && <button className="app-button-secondary self-start" onClick={() => navigate('/')}>← 返回技能</button>}
+            {location.pathname !== '/' && location.pathname !== '/settings' && location.pathname !== '/skill-console' && <button className="app-button-secondary self-start" onClick={() => navigate('/')}>← 返回技能</button>}
             <Outlet />
           </div>
         </div>
