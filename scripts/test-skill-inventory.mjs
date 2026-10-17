@@ -56,3 +56,52 @@ assert.match(legend, /usage-frequency-low[^>]*>绿 · 低频/);
 assert.doesNotMatch(legend, /采集异常/);
 assert.match(render({ view: 'cards', frequencies: new Map([['example', { explicit: 5 }]]) }), /中频/);
 console.log('25 inventory rendering checks passed');
+
+const { specKitFamily } = loadTS(new URL('../src/lib/skillFamily.ts', import.meta.url));
+const { SpecKitGroup } = loadTS(new URL('../src/components/SpecKitGroup.tsx', import.meta.url));
+const specCopies = [
+  { ...skill, id: 'plan-a', name: 'speckit-plan', project_id: 'a', path: '/a/plan' },
+  { ...skill, id: 'plan-b', name: 'speckit-plan', project_id: 'b', path: '/b/plan' },
+  { ...skill, id: 'tasks-a', name: 'speckit-tasks', project_id: 'a', path: '/a/tasks' },
+];
+const specFrequencies = new Map([
+  ['speckit-plan', { explicit: 4, declared: 2, inferred: 3, lastEvidence: 10 }],
+  ['speckit-tasks', { explicit: 6, declared: 1, inferred: 1, lastEvidence: 20 }],
+]);
+const family = specKitFamily([...specCopies, skill], specFrequencies);
+assert.equal(family.copies, 3);
+assert.equal(family.projects, 2);
+assert.equal(family.stages.size, 2);
+assert.equal(family.total.explicit, 10, 'project copies must not multiply name-based frequency');
+assert.equal(family.total.declared, 3);
+assert.equal(family.total.inferred, 4);
+assert.equal(family.total.lastEvidence, 20);
+assert.equal(family.other.length, 1);
+assert.equal(family.other[0].id, skill.id);
+assert.equal(family.stages.get('speckit-plan')[1].path, '/b/plan');
+assert.equal(specKitFamily([skill], new Map()).copies, 0);
+assert.equal(specKitFamily([{ ...skill, name: 'speckitish' }], new Map()).copies, 0);
+assert.equal(specKitFamily([specCopies[0]], specFrequencies).total.explicit, 4);
+const familyMarkup = render({ view: 'cards', skills: [...specCopies, skill], frequencies: specFrequencies, projects: [{ id: 'a', name: 'Project A' }, { id: 'b', name: 'Project B' }] });
+assert.equal((familyMarkup.match(/aria-label="SpecKit 技能组"/g) || []).length, 1);
+assert.match(familyMarkup, /2 个阶段 · 2 个项目 · 3 个副本/);
+assert.match(familyMarkup, /Project A/);
+assert.match(familyMarkup, /Project B/);
+assert.doesNotMatch(familyMarkup, /<details[^>]*\sopen(?:=|>)/, 'family and stages start collapsed');
+assert.match(familyMarkup, /配置 example/);
+assert.match(familyMarkup, /配置 speckit-plan · Project B/);
+assert.match(render({ view: 'list', skills: specCopies, frequencies: specFrequencies }), /SpecKit 技能组/);
+assert.match(render({ view: 'cards', skills: specCopies, ready: false }), /待统计/);
+let selected;
+const tree = SpecKitGroup({ family, projects: [{ id: 'a', name: 'Project A' }, { id: 'b', name: 'Project B' }], frequencies: specFrequencies, managedIds: new Set(), days: 30, state: 'ready', onInspect(s) { selected = s.id; }, onOpen() {} });
+function nodes(element) {
+  if (!element || typeof element !== 'object') return [];
+  if (Array.isArray(element)) return element.flatMap(nodes);
+  return [element, ...nodes(element.props?.children)];
+}
+const projectB = nodes(tree).find(n => n.props?.['aria-label'] === '配置 speckit-plan · Project B');
+assert(projectB);
+projectB.props.onClick();
+assert.equal(selected, 'plan-b', 'opening project B must preserve its actual skill id');
+assert.equal(specCopies.length, 3, 'grouping cannot mutate the discovered inventory');
+console.log('25 SpecKit grouping, evidence and project-action checks passed');

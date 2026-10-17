@@ -2,10 +2,13 @@ import { FileSearch, SlidersHorizontal } from 'lucide-react';
 import { FrequencyBadge } from './FrequencyBadge';
 import type { ManagedSkill } from '../lib/tauri';
 import type { SkillFrequency } from '../lib/skillFrequency';
-import type { WorkflowSkill } from '../lib/workflow';
+import type { WorkflowProject, WorkflowSkill } from '../lib/workflow';
+import { specKitFamily } from '../lib/skillFamily';
+import { SpecKitGroup } from './SpecKitGroup';
 
 interface Props {
   skills: WorkflowSkill[];
+  projects?: WorkflowProject[];
   managed: ManagedSkill[];
   frequencies: Map<string, SkillFrequency>;
   variants: Set<string>;
@@ -21,8 +24,13 @@ const scope = (value: string) => ({ global: '全局', domain: '领域', project:
 const role = (value: string) => ({ orchestration: '编排', specialist: '专用', primitive: '基础' }[value] || value);
 const date = (value: number | null | undefined) => value ? new Date(value * 1000).toLocaleDateString('zh-CN') : '暂无证据';
 
-export function SkillInventory({ skills, managed, frequencies, variants, ready, availability = 'loading', days, view, onInspect, onOpen }: Props) {
+export function SkillInventory({ skills, projects = [], managed, frequencies, variants, ready, availability = 'loading', days, view, onInspect, onOpen }: Props) {
   const frequencyState = ready ? 'ready' : availability;
+  const family = specKitFamily(skills, frequencies);
+  if (family.copies) return <div className="space-y-3">
+    <SpecKitGroup family={family} projects={projects} frequencies={frequencies} managedIds={new Set(managed.map(s => s.id))} days={days} state={frequencyState} onInspect={onInspect} onOpen={onOpen} />
+    {family.other.length > 0 && <SkillInventory skills={family.other} projects={projects} managed={managed} frequencies={frequencies} variants={variants} ready={ready} availability={availability} days={days} view={view} onInspect={onInspect} onOpen={onOpen} />}
+  </div>;
   const managedById = new Map(managed.map(s => [s.id, s]));
   function metadata(s: WorkflowSkill) {
     const category = s.category_override || s.category || s.detected_category || 'unknown';
