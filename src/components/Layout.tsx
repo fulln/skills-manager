@@ -7,7 +7,6 @@ import { useApp } from "../context/AppContext";
 import { useTranslation } from "react-i18next";
 import { useDragWindow } from "../hooks/useDragWindow";
 import { getManagementMode } from "../lib/tauri";
-import { SkillConsole } from "./SkillConsole";
 
 export function Layout() {
   const { t } = useTranslation();
@@ -73,7 +72,6 @@ export function Layout() {
             <Outlet />
           </div>
         </div>
-        <SkillConsole />
       </div>
       <CommandPalette />
     </div>

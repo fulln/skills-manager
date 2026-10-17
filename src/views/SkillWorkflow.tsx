@@ -12,6 +12,7 @@ import type { UsageSummary } from '../lib/usage';
 import { hasNameVariants, skillFrequencies } from '../lib/skillFrequency';
 import { SkillInventory } from '../components/SkillInventory';
 import { FrequencyLegend } from '../components/FrequencyBadge';
+import { SkillConsole } from '../components/SkillConsole';
 
 const categories = [
   { id: 'local_packaged' as SkillCategory, title: '本地封装', Icon: FolderArchive },
@@ -95,6 +96,7 @@ export function SkillWorkflow() {
       <div><h1 className="app-page-title">技能工作台</h1><p className="text-[12px] text-secondary mt-1">管理已有技能 · 比较实际使用 · 核查优化对象</p></div>
       <div className="flex items-center gap-2"><button className="app-button-primary" onClick={() => navigate('/install')}><Download size={14} />安装技能</button><SkillManagementActions compact /><button className="app-icon-button" aria-label="刷新技能与统计" title="刷新技能与统计" onClick={() => { void load(true); void loadUsage(); }} disabled={loading}><RefreshCw size={16} /></button></div>
     </header>
+    <SkillConsole />
     {error && <p role="alert" className="text-[12px] text-danger">{error}</p>}
     <div className="grid grid-cols-4 gap-3">
       {[
