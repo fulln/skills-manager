@@ -42,3 +42,35 @@ pub async fn usage_import_local() -> Result<crate::core::usage_local::LocalImpor
     .map_err(AppError::db)?
     .map_err(AppError::db)
 }
+
+/// Local-only ephemeral console; all SQLite handles are strictly read-only.
+#[tauri::command]
+pub async fn usage_live_poll() -> Result<crate::core::usage_live::LiveSnapshot, AppError> {
+    tauri::async_runtime::spawn_blocking(|| {
+        use rusqlite::{Connection, OpenFlags};
+        let root = crate::core::central_repo::dev_root();
+        let catalog = Connection::open_with_flags(
+            root.join("workflow.sqlite3"),
+            OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .map_err(|e| e.to_string())?;
+        let mut query = catalog
+            .prepare("SELECT DISTINCT name FROM skills WHERE name IS NOT NULL")
+            .map_err(|e| e.to_string())?;
+        let skills = query
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        let mut snapshot = crate::core::usage_live::poll(skills)?;
+        if crate::core::usage_live::append_bridge(&mut snapshot, &root).is_err() {
+            snapshot
+                .coverage_note
+                .push_str(" 桥接记录暂不可读，当前只显示本地日志。");
+        }
+        Ok::<_, String>(snapshot)
+    })
+    .await
+    .map_err(AppError::db)?
+    .map_err(AppError::db)
+}

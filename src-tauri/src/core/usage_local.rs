@@ -21,7 +21,7 @@ pub struct LocalImportResult {
     pub malformed_lines: usize,
     pub coverage_note: String,
 }
-fn message_signal(v: &Value, skill: &str) -> Option<EvidenceKind> {
+pub(crate) fn message_signal(v: &Value, skill: &str) -> Option<EvidenceKind> {
     let payload = v.get("payload").unwrap_or(v);
     let role = payload["role"]
         .as_str()

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
 const source = fs.readFileSync(new URL('../src/lib/skillFrequency.ts', import.meta.url), 'utf8');
-const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
+const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const { skillFrequencies, hasNameVariants } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 const row = (skill, project, window_days, explicit, declared, inferred, last_used_at) => ({ skill, project, window_days, explicit, declared, inferred, events: explicit + declared + inferred, sessions: 1, last_used_at });
 const rows = [row('alpha', 'p1', 30, 2, 1, 4, 100), row('alpha', 'p2', 30, 3, 0, 1, 200), row('alpha', null, 30, 1, 0, 0, 50), row('alpha', 'p1', 7, 1, 0, 0, 100), row('beta', 'p1', 30, 0, 2, 5, 120)];

@@ -1020,6 +1020,7 @@ pub fn run() {
             commands::usage::usage_status,
             commands::usage::usage_summaries,
             commands::usage::usage_events,
+            commands::usage::usage_live_poll,
             commands::usage::usage_import_nmem,
             commands::usage::usage_import_local,
             commands::workflow::get_management_mode,

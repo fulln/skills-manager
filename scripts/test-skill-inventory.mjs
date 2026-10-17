@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 
 const source = fs.readFileSync(new URL('../src/components/SkillInventory.tsx', import.meta.url), 'utf8');
-const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
 const exports = {};
 vm.runInNewContext('(function(require, exports, React) {' + code + '\n})')(createRequire(import.meta.url), exports, React);
 const skill = { id: 'a', name: 'example', description: 'A real purpose', scope: 'project', role: 'specialist', path: '/skills/example', category: 'unknown' };
