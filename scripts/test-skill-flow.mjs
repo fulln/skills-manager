@@ -11,6 +11,7 @@ function load(url) {
   const exports = {}; cache.set(url.href, exports);
   const code = ts.transpileModule(fs.readFileSync(url, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
   const require = id => {
+    if (id === 'react') return { ...React, useMemo: compute => compute() };
     if (!id.startsWith('.')) return createRequire(url)(id);
     return load(['.ts', '.tsx'].map(ext => new URL(id + ext, url)).find(file => fs.existsSync(file)));
   };
@@ -58,4 +59,18 @@ absent(render([]), /Codex|alpha/);
 match(render([{ ...first, skill: '<script>bad</script>' }]), /&lt;script&gt;bad&lt;\/script&gt;/);
 // Selecting a different event highlights its route; it never hides the others.
 match(render(events, '3'), /alpha/); match(render(events, '3'), /beta/);
-console.log(`${checks} multi-project graph checks passed`);
+const opened = []; const selected = [];
+const tree = SkillUsageFlow({ events, onOpenSkill: event => opened.push(event), onSelect: id => selected.push(id) });
+const buttons = [];
+function visit(element) {
+  if (!element || typeof element !== 'object') return;
+  if (Array.isArray(element)) { element.forEach(visit); return; }
+  if (element.type === 'button') buttons.push(element);
+  visit(element.props?.children);
+}
+visit(tree);
+buttons.find(button => button.props['aria-label'].startsWith('查看技能介绍 alpha')).props.onClick();
+equal(opened.length, 1); equal(opened[0].skill, 'alpha'); equal(selected.length, 0);
+buttons.find(button => button.props['aria-label'].startsWith('Codex：')).props.onClick();
+equal(selected.length, 1); equal(opened.length, 1);
+console.log(`${checks} multi-project graph and click checks passed`);

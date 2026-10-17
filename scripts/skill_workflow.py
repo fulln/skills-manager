@@ -75,6 +75,19 @@ def sync(root,data):
             c.execute('INSERT OR REPLACE INTO skill_provenance VALUES(?,?)',(record['id'],json.dumps(metadata,ensure_ascii=False)))
     c.commit(); return c
 
+def skill_document(root, skill_id):
+    validate_root(root)
+    with sqlite3.connect((Path(root)/'workflow.sqlite3').resolve().as_uri()+'?mode=ro',uri=True) as connection:
+        row=connection.execute('SELECT path FROM skills WHERE id=?',(skill_id,)).fetchone()
+    if not row: raise ValueError('skill not found in current catalog')
+    base=Path(row[0]).expanduser().resolve(strict=True)
+    document=(base/'SKILL.md').resolve(strict=True)
+    if not document.is_relative_to(base): raise ValueError('skill document escapes its directory')
+    if not document.is_file(): raise ValueError('skill document is not a file')
+    with document.open('rb') as handle: content=handle.read(512*1024+1)
+    if len(content)>512*1024: raise ValueError('skill document exceeds 512 KiB')
+    return {'skill_id':skill_id,'filename':'SKILL.md','content':content.decode('utf-8'),'central_path':str(base)}
+
 def set_category(root,skill_id,category):
     if category not in ('auto','unknown','local_packaged','downloaded','downloaded_modified'):
         raise ValueError('unknown skill category')
@@ -208,11 +221,13 @@ def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--root',type=Path,default=DEFAULT_ROOT); ap.add_argument('--home',type=Path,default=Path.home())
     sp=ap.add_subparsers(dest='cmd',required=True); sp.add_parser('refresh'); sp.add_parser('snapshot')
     category=sp.add_parser('set-category'); category.add_argument('--skill-id',required=True); category.add_argument('--category',required=True,choices=['auto','unknown','local_packaged','downloaded','downloaded_modified'])
+    document=sp.add_parser('document'); document.add_argument('--skill-id',required=True)
     q=sp.add_parser('recommend'); q.add_argument('--project',required=True); q.add_argument('--task',required=True); q.add_argument('--agent',default='codex')
     r=sp.add_parser('run'); r.add_argument('--run-id',required=True); r.add_argument('--skill',required=True); r.add_argument('--artifact',action='append',default=[]); r.add_argument('command',nargs=argparse.REMAINDER)
     a=ap.parse_args(); root=validate_root(a.root)
     if a.cmd=='refresh': print(json.dumps(refresh(root,a.home),ensure_ascii=False)); return
     if a.cmd=='snapshot': print(json.dumps(snapshot(root),ensure_ascii=False)); return
+    if a.cmd=='document': print(json.dumps(skill_document(root,a.skill_id),ensure_ascii=False)); return
     if a.cmd=='set-category': print(json.dumps(set_category(root,a.skill_id,a.category),ensure_ascii=False)); return
     if a.cmd=='recommend': print(json.dumps(recommend(root,a.project,a.task,a.agent,a.home),ensure_ascii=False)); return
     if a.cmd=='run':

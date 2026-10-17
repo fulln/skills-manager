@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { SkillUsageFlow } from './SkillUsageFlow';
 import { usageLivePoll, evidenceLabels as labels } from '../lib/liveUsage';
-import type { LiveEvidence } from '../lib/liveUsage';
+import type { LiveEvidence, LiveUsageEvent } from '../lib/liveUsage';
 import { clearLiveUsage, mergeLiveUsage, type LiveUsageBuffer } from '../lib/liveUsageBuffer';
 
 const date = (ts: number) => new Date(ts * 1000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-export function SkillConsole() {
+export function SkillConsole({ onOpenSkill }: { onOpenSkill: (event: LiveUsageEvent) => void }) {
   const [open, setOpen] = useState(true); const [paused, setPaused] = useState(false); const [buffer, setBuffer] = useState<LiveUsageBuffer>({ events: [], ignored: new Set() }); const [agent, setAgent] = useState(''); const [project, setProject] = useState(''); const [evidence, setEvidence] = useState<LiveEvidence | ''>(''); const [error, setError] = useState(''); const [checked, setChecked] = useState<number | null>(null); const [coverage, setCoverage] = useState(''); const [scanned, setScanned] = useState<number | null>(null); const running = useRef(false); const refresh = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (!open || paused) return;
@@ -51,7 +51,7 @@ export function SkillConsole() {
     {open && <div className="border-t border-border-subtle px-4 py-3 space-y-2">
       <div className="flex flex-wrap items-center gap-2"><select aria-label="Agent筛选" className="app-input text-[11px]" value={agent} onChange={e => setAgent(e.target.value)}><option value="">全部 Agent</option>{agents.map(a => <option key={a}>{a}</option>)}</select><select aria-label="项目筛选" className="app-input min-w-0 max-w-[360px] text-[11px]" value={project} onChange={e => setProject(e.target.value)}><option value="">全部项目</option><option value="__none__">未归属项目</option>{projects.map(p => <option key={p} value={p}>{p.split('/').filter(Boolean).at(-1)} · {p}</option>)}</select><select aria-label="证据类型筛选" className="app-input text-[11px]" value={evidence} onChange={e => setEvidence(e.target.value as LiveEvidence | '')}><option value="">全部证据</option>{Object.entries(labels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select><span className="ml-auto text-[11px] text-tertiary">本地日志 + Dev 桥接 · 非 nmem 实时流</span></div>
       {error && <p role="alert" className="text-[11px] text-danger">{error}</p>}
-      <SkillUsageFlow events={filtered} selectedId={selected?.id} onSelect={setSelectedId} />
+      <SkillUsageFlow events={filtered} selectedId={selected?.id} onSelect={setSelectedId} onOpenSkill={onOpenSkill} />
       {selected ? <>
         <p className="line-clamp-2 text-[12px] text-secondary" title={selected.excerpt || undefined}><span className="mr-2 text-tertiary">{selected.skill} · {labels[selected.evidence]}</span>{selected.excerpt || '该事件未提供对话片段。'}</p>
         <div className="flex gap-1.5 overflow-x-auto pb-1" aria-label="近期技能事件">{filtered.slice(0, 20).map(e => <button type="button" key={e.id} aria-pressed={e.id === selected.id} onClick={() => setSelectedId(e.id)} className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${e.id === selected.id ? 'border-accent-border bg-accent-bg' : 'border-border-subtle hover:bg-surface-hover'}`}><span className="text-tertiary">{date(e.occurred_at)} · {labels[e.evidence]}</span><strong className="ml-2 font-medium">{e.skill}</strong></button>)}</div>

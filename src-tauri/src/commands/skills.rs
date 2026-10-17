@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -229,7 +229,7 @@ pub struct TargetDto {
     pub synced_at: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SkillDocumentDto {
     pub skill_id: String,
     pub filename: String,
@@ -382,10 +382,14 @@ pub async fn get_skill_document(
 ) -> Result<SkillDocumentDto, AppError> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let skill = store
-            .get_skill_by_id(&skill_id)
-            .map_err(AppError::db)?
-            .ok_or_else(|| AppError::not_found("Skill not found"))?;
+        let skill = store.get_skill_by_id(&skill_id).map_err(AppError::db)?;
+        let Some(skill) = skill else {
+            // Discovered project skills remain read-only and outside the managed library.
+            // Resolve an existing catalog ID, never a caller-supplied filesystem path.
+            let document = crate::core::workflow::call(&["document", "--skill-id", &skill_id])
+                .map_err(AppError::db)?;
+            return serde_json::from_value(document).map_err(AppError::db);
+        };
 
         let (filename, content) = read_skill_document_from_dir(Path::new(&skill.central_path))?;
 
