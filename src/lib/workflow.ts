@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-export type SkillCategory = 'local_packaged' | 'downloaded' | 'downloaded_modified';
+export type SkillCategory = 'local_packaged' | 'downloaded' | 'downloaded_modified' | 'unknown';
 export type WorkflowSkill = { id: string; name: string; description: string | null; path: string; scope: string; project_id: string | null; role: string; tags?: string[]; category?: SkillCategory; detected_category?: SkillCategory; category_override?: SkillCategory | null; category_reason?: string | null; source?: string | null; source_ref?: string | null; source_revision?: string | null; canonical_path?: string | null };
 export type WorkflowProject = { id: string; name: string; path: string; domain: string | null; skill_count: number; effective_skill_ids?: string[] };
 export type WorkflowSnapshot = { projects: WorkflowProject[]; skills: WorkflowSkill[]; sync: { last_refresh: number | null; running: boolean; error: string | null; project_count: number; skill_count: number; effective_skill_ids?: string[] }; bridge_path: string };

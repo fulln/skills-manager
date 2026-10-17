@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -50,9 +51,38 @@ def content_hash(root: str | os.PathLike[str]) -> str:
 def _remote(record: dict[str, Any]) -> bool:
     for key in ("source_ref", "source_ref_resolved", "source"):
         value = str(record.get(key) or "").strip().lower()
-        if value.startswith(("http://", "https://", "git@", "ssh://")) or value.startswith("github.com/"):
+        if value.startswith(("http://", "https://", "git@", "ssh://")):
+            return True
+        if value.startswith("github.com/") and "/" in value[11:]:
             return True
     return record.get("source_type") in {"git", "skillssh"}
+
+
+def _git_skill_remote(path: str) -> str | None:
+    """Recover a remote only for a conventional repository ``skills/<name>``."""
+    try:
+        current = Path(path).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return None
+    for repo in [current, *list(current.parents)[:6]]:
+        if ".skills-manager" in repo.parts:
+            continue
+        config = repo / ".git" / "config"
+        if not config.is_file():
+            continue
+        try:
+            relative = current.relative_to(repo)
+            parts = relative.parts
+            skills_index = parts.index("skills")
+            if skills_index != 0 or len(parts) != 2:
+                continue
+            text = config.read_text(encoding="utf-8")
+        except (OSError, ValueError, UnicodeDecodeError):
+            continue
+        match = re.search(r'\[remote\s+"origin"\][^\[]*?url\s*=\s*(\S+)', text, re.S)
+        if match and _remote({"source_ref": match.group(1)}):
+            return match.group(1)
+    return None
 
 
 def classify(raw: dict[str, Any]) -> dict[str, Any]:
@@ -61,10 +91,20 @@ def classify(raw: dict[str, Any]) -> dict[str, Any]:
         canonical_path = str(Path(path).expanduser().resolve()) if path else ""
     except (OSError, RuntimeError):
         canonical_path = path
-    source_ref = raw.get("source_ref") or raw.get("source") or ""
+    source_ref = raw.get("source_ref_resolved") or raw.get("source_ref") or raw.get("source") or ""
+    if not _remote({"source_ref": source_ref}):
+        for candidate in (raw.get("source_ref"), raw.get("source")):
+            if candidate and _remote({"source_ref": candidate}):
+                source_ref = candidate
+                break
+    explicit_remote = _remote(raw)
+    inferred_remote = None if explicit_remote else _git_skill_remote(path)
+    if inferred_remote:
+        source_ref = inferred_remote
+        raw = {**raw, "source_ref": inferred_remote, "source_type": "git"}
     result = {
-        "category": "local_packaged",
-        "category_reason": "未找到下载来源，暂归本地，可手动校正",
+        "category": "unknown",
+        "category_reason": "未找到可验证的下载来源，待核对",
         "canonical_path": canonical_path,
         "source_ref": source_ref,
         "source": raw.get("source_type") or raw.get("source"),
@@ -75,7 +115,15 @@ def classify(raw: dict[str, Any]) -> dict[str, Any]:
         if not path or not skill_file.is_file() or not os.access(skill_file, os.R_OK):
             result["category_reason"] = "本地路径不可读取或缺少 SKILL.md，来源待核对"
         return result
+    if inferred_remote:
+        result["category"] = "downloaded"
+        result["source"] = "git"
+        result["category_reason"] = "从技能仓库 origin 恢复来源，下载基线待核对"
+        return result
     result["category"] = "downloaded"
+    if raw.get("source_type") not in {"git", "skillssh"}:
+        result["category_reason"] = "存在远端引用，但本地来源类型不是受管下载，下载基线待核对"
+        return result
     result["category_reason"] = "存在受管远端来源"
     baseline = str(raw.get("content_hash") or "").strip().lower()
     if not baseline or not path or not os.path.isdir(path):

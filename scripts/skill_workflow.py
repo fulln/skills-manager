@@ -76,7 +76,7 @@ def sync(root,data):
     c.commit(); return c
 
 def set_category(root,skill_id,category):
-    if category not in ('auto','local_packaged','downloaded','downloaded_modified'):
+    if category not in ('auto','unknown','local_packaged','downloaded','downloaded_modified'):
         raise ValueError('unknown skill category')
     c=db(root)
     row=c.execute('SELECT s.path,p.metadata FROM skills s LEFT JOIN skill_provenance p ON p.skill_id=s.id WHERE s.id=?',(skill_id,)).fetchone()
@@ -207,7 +207,7 @@ def run_cmd(root,rid,skill,argv,artifacts):
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--root',type=Path,default=DEFAULT_ROOT); ap.add_argument('--home',type=Path,default=Path.home())
     sp=ap.add_subparsers(dest='cmd',required=True); sp.add_parser('refresh'); sp.add_parser('snapshot')
-    category=sp.add_parser('set-category'); category.add_argument('--skill-id',required=True); category.add_argument('--category',required=True,choices=['auto','local_packaged','downloaded','downloaded_modified'])
+    category=sp.add_parser('set-category'); category.add_argument('--skill-id',required=True); category.add_argument('--category',required=True,choices=['auto','unknown','local_packaged','downloaded','downloaded_modified'])
     q=sp.add_parser('recommend'); q.add_argument('--project',required=True); q.add_argument('--task',required=True); q.add_argument('--agent',default='codex')
     r=sp.add_parser('run'); r.add_argument('--run-id',required=True); r.add_argument('--skill',required=True); r.add_argument('--artifact',action='append',default=[]); r.add_argument('command',nargs=argparse.REMAINDER)
     a=ap.parse_args(); root=validate_root(a.root)

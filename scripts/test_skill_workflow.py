@@ -72,9 +72,9 @@ class WorkflowTests(unittest.TestCase):
   self.assertEqual(sorted(codes),[0,1]);self.assertEqual(out.read_text(),'one\n')
  def test_category_override_survives_refresh_and_auto_reset(self):
   before=(self.t/'opt/demo/.agents/skills/alpha/SKILL.md').read_bytes();x=self.call('refresh');sid=x['skills'][0]['id']
-  changed=self.call('set-category','--skill-id',sid,'--category','downloaded_modified');self.assertEqual(changed['skills'][0]['category'],'downloaded_modified');self.assertEqual(changed['skills'][0]['detected_category'],'local_packaged')
+  changed=self.call('set-category','--skill-id',sid,'--category','downloaded_modified');self.assertEqual(changed['skills'][0]['category'],'downloaded_modified');self.assertEqual(changed['skills'][0]['detected_category'],'unknown')
   self.assertEqual(self.call('refresh')['skills'][0]['category_override'],'downloaded_modified')
-  restored=self.call('set-category','--skill-id',sid,'--category','auto');self.assertEqual(restored['skills'][0]['category'],'local_packaged');self.assertIsNone(restored['skills'][0]['category_override']);self.assertEqual(before,(self.t/'opt/demo/.agents/skills/alpha/SKILL.md').read_bytes())
+  restored=self.call('set-category','--skill-id',sid,'--category','auto');self.assertEqual(restored['skills'][0]['category'],'unknown');self.assertIsNone(restored['skills'][0]['category_override']);self.assertEqual(before,(self.t/'opt/demo/.agents/skills/alpha/SKILL.md').read_bytes())
   self.assertFalse((self.t/'db/library/usage-events.sqlite3').exists())
  def test_unknown_skill_and_invalid_category_rejected(self):
   x=self.call('refresh');sid=x['skills'][0]['id']

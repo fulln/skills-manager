@@ -48,7 +48,7 @@ class ProvenanceTests(unittest.TestCase):
 
     def test_local_unknown_legacy(self):
         result = classify({"path": str(self.root), "source_type": "import"})
-        self.assertEqual(result["category"], "local_packaged")
+        self.assertEqual(result["category"], "unknown")
 
     def test_remote_ref_wins_without_source_type(self):
         result = classify({"path": str(self.root), "source_ref_resolved": "https://github.com/a/b.git"})
@@ -66,15 +66,16 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(result["canonical_path"], str(self.root.resolve()))
 
     def test_unreadable_hash_is_uncertain_not_modified(self):
+        record = {"path": str(self.root), "source_type": "git", "source_ref": "https://github.com/a/b.git", "content_hash": "different"}
         with patch("skill_provenance.Path.read_bytes", side_effect=PermissionError("denied")):
-            result = classify({"path": str(self.root), "source_type": "git", "source_ref": "https://github.com/a/b.git", "content_hash": "different"})
+            result = classify(record)
         self.assertEqual(result["category"], "downloaded")
         self.assertIn("不可读取", result["category_reason"])
 
 
     def test_missing_local_path_is_explicitly_uncertain(self):
         result = classify({"path": str(self.root / "missing"), "source_type": "local"})
-        self.assertEqual(result["category"], "local_packaged")
+        self.assertEqual(result["category"], "unknown")
         self.assertIn("待核对", result["category_reason"])
 
     def test_symlink_loop_does_not_crash_classification(self):
@@ -85,7 +86,61 @@ class ProvenanceTests(unittest.TestCase):
 
     def test_github_name_inside_local_path_is_not_remote(self):
         result = classify({"path": str(self.root), "source_ref": "/tmp/github.com/owner/skill", "source_type": "local"})
-        self.assertEqual(result["category"], "local_packaged")
+        self.assertEqual(result["category"], "unknown")
+
+    def test_conventional_repo_skills_path_recovers_origin(self):
+        repo = self.root.parent / "repo"
+        skill = repo / "skills" / "learned"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("x", encoding="utf-8")
+        git = repo / ".git"
+        git.mkdir()
+        (git / "config").write_text('[remote "origin"]\n\turl = https://github.com/example/repo.git\n', encoding="utf-8")
+        result = classify({"path": str(skill), "content_hash": content_hash(skill)})
+        self.assertEqual(result["category"], "downloaded")
+        self.assertEqual(result["source_ref"], "https://github.com/example/repo.git")
+        self.assertEqual(result["source"], "git")
+        self.assertIn("基线待核对", result["category_reason"])
+
+    def test_local_git_origin_is_not_download_evidence(self):
+        repo = self.root.parent / "local-repo"
+        skill = repo / "skills" / "local"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("x", encoding="utf-8")
+        git = repo / ".git"
+        git.mkdir()
+        (git / "config").write_text('[remote "origin"]\n url = /Users/example/backup\n', encoding="utf-8")
+        self.assertEqual(classify({"path": str(skill)})["category"], "unknown")
+
+    def test_legacy_import_remote_does_not_use_local_hash_as_baseline(self):
+        result = classify({"path": str(self.root), "source_type": "import", "source_ref": "https://github.com/example/repo.git", "content_hash": "different"})
+        self.assertEqual(result["category"], "downloaded")
+        self.assertIn("基线待核对", result["category_reason"])
+
+    def test_github_shorthand_is_remote(self):
+        result = classify({"path": str(self.root), "source_ref": "github.com/example/repo"})
+        self.assertEqual(result["category"], "downloaded")
+
+    def test_project_remote_is_not_inferred_for_agents_skill(self):
+        repo = self.root.parent / "project"
+        skill = repo / ".agents" / "skills" / "local"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("x", encoding="utf-8")
+        git = repo / ".git"
+        git.mkdir()
+        (git / "config").write_text('[remote "origin"]\n\turl = https://github.com/example/project.git\n', encoding="utf-8")
+        result = classify({"path": str(skill)})
+        self.assertEqual(result["category"], "unknown")
+
+    def test_central_manager_repo_is_not_inferred(self):
+        repo = self.root.parent / ".skills-manager" / "skills" / "central"
+        repo.mkdir(parents=True)
+        (repo / "SKILL.md").write_text("x", encoding="utf-8")
+        git = repo.parent.parent / ".git"
+        git.mkdir()
+        (git / "config").write_text('[remote "origin"]\n\turl = https://github.com/example/manager.git\n', encoding="utf-8")
+        result = classify({"path": str(repo)})
+        self.assertEqual(result["category"], "unknown")
 
 if __name__ == "__main__":
     unittest.main()
