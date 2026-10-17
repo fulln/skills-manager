@@ -6,13 +6,25 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 
-const source = fs.readFileSync(new URL('../src/components/SkillInventory.tsx', import.meta.url), 'utf8');
-const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
-const exports = {};
-vm.runInNewContext('(function(require, exports, React) {' + code + '\n})')(createRequire(import.meta.url), exports, React);
+const cache = new Map();
+function loadTS(url) {
+  if (cache.has(url.href)) return cache.get(url.href);
+  const exports = {};
+  cache.set(url.href, exports);
+  const code = ts.transpileModule(fs.readFileSync(url, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+  const require = id => {
+    if (!id.startsWith('.')) return createRequire(url)(id);
+    const target = ['.tsx', '.ts'].map(ext => new URL(id + ext, url)).find(path => fs.existsSync(path));
+    if (!target) throw new Error(`Missing local module ${id}`);
+    return loadTS(target);
+  };
+  vm.runInNewContext('(function(require, exports, React) {' + code + '\n})')(require, exports, React);
+  return exports;
+}
+const { SkillInventory } = loadTS(new URL('../src/components/SkillInventory.tsx', import.meta.url));
 const skill = { id: 'a', name: 'example', description: 'A real purpose', scope: 'project', role: 'specialist', path: '/skills/example', category: 'unknown' };
 const props = { skills: [skill], managed: [], frequencies: new Map([['example', { explicit: 2, declared: 5, inferred: 9, lastEvidence: null }]]), variants: new Set(), ready: true, days: 30, onOpen() {}, onInspect() {} };
-const render = extra => renderToStaticMarkup(React.createElement(exports.SkillInventory, { ...props, ...extra }));
+const render = extra => renderToStaticMarkup(React.createElement(SkillInventory, { ...props, ...extra }));
 const list = render({ view: 'list' });
 assert.match(list, /来源待核对/);
 assert.doesNotMatch(list, /本地封装/);
@@ -26,4 +38,14 @@ const unavailable = render({ view: 'list', ready: false });
 assert.doesNotMatch(unavailable, />2<\/strong>/);
 assert.match(unavailable, /—/);
 assert.match(render({ view: 'list', variants: new Set(['example']) }), /同名合计/);
-console.log('10 inventory rendering checks passed');
+assert.match(list, /usage-frequency-low/);
+assert.match(cards, /usage-frequency-low/);
+assert.match(render({ view: 'list', frequencies: new Map([['example', { explicit: 5 }]]) }), /usage-frequency-high/);
+assert.match(render({ view: 'list', frequencies: new Map([['example', { explicit: 0, declared: 50, inferred: 100 }]]) }), /暂无记录/);
+assert.doesNotMatch(render({ view: 'list', frequencies: new Map([['example', { explicit: 0, declared: 50, inferred: 100 }]]) }), /usage-frequency-high/);
+assert.match(render({ view: 'list', ready: false, availability: 'unavailable' }), /usage-frequency-error/);
+assert.match(render({ view: 'list', ready: false, availability: 'unavailable' }), /异常/);
+assert.doesNotMatch(render({ view: 'list', ready: false, availability: 'unmatched' }), /usage-frequency-error/);
+assert.match(render({ view: 'list', ready: false, availability: 'unmatched' }), /未匹配/);
+assert.doesNotMatch(unavailable, /usage-frequency-error/);
+console.log('20 inventory rendering checks passed');

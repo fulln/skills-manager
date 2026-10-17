@@ -26,6 +26,10 @@
     --color-accent-dark: #047857;
     --color-accent-bg: rgba(5,150,105,0.08);
     --color-accent-border: rgba(5,150,105,0.25);
+    --color-frequency-high: #047857;
+    --color-frequency-high-bg: rgba(5,150,105,0.09);
+    --color-frequency-low: #92400E;
+    --color-frequency-low-bg: rgba(245,158,11,0.12);
     --color-danger: #DC2626;
     --color-danger-bg: rgba(220,38,38,0.08);
   }
@@ -52,6 +56,10 @@
     --color-accent-dark: #059669;
     --color-accent-bg: rgba(16,185,129,0.08);
     --color-accent-border: rgba(16,185,129,0.25);
+    --color-frequency-high: #6EE7B7;
+    --color-frequency-high-bg: rgba(16,185,129,0.12);
+    --color-frequency-low: #FCD34D;
+    --color-frequency-low-bg: rgba(245,158,11,0.12);
     --color-danger: #EF4444;
     --color-danger-bg: rgba(239,68,68,0.08);
   }
@@ -164,6 +172,14 @@
   .app-icon-button {
     @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-secondary transition-colors hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50;
   }
+
+  .usage-frequency {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-tertiary;
+    background: var(--color-surface-hover);
+  }
+  .usage-frequency-high { color: var(--color-frequency-high); background: var(--color-frequency-high-bg); }
+  .usage-frequency-low { color: var(--color-frequency-low); background: var(--color-frequency-low-bg); }
+  .usage-frequency-error { color: var(--color-danger); background: var(--color-danger-bg); }
 
   .app-badge {
     @apply inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-hover px-2.5 py-1 text-[12px] font-medium text-tertiary;

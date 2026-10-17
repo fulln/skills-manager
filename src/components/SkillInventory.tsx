@@ -1,4 +1,5 @@
 import { FileSearch, SlidersHorizontal } from 'lucide-react';
+import { FrequencyBadge } from './FrequencyBadge';
 import type { ManagedSkill } from '../lib/tauri';
 import type { SkillFrequency } from '../lib/skillFrequency';
 import type { WorkflowSkill } from '../lib/workflow';
@@ -9,6 +10,7 @@ interface Props {
   frequencies: Map<string, SkillFrequency>;
   variants: Set<string>;
   ready: boolean;
+  availability?: 'loading' | 'unavailable' | 'unmatched';
   days: number;
   view: 'list' | 'cards';
   onInspect: (skill: WorkflowSkill) => void;
@@ -19,7 +21,8 @@ const scope = (value: string) => ({ global: '全局', domain: '领域', project:
 const role = (value: string) => ({ orchestration: '编排', specialist: '专用', primitive: '基础' }[value] || value);
 const date = (value: number | null | undefined) => value ? new Date(value * 1000).toLocaleDateString('zh-CN') : '暂无证据';
 
-export function SkillInventory({ skills, managed, frequencies, variants, ready, days, view, onInspect, onOpen }: Props) {
+export function SkillInventory({ skills, managed, frequencies, variants, ready, availability = 'loading', days, view, onInspect, onOpen }: Props) {
+  const frequencyState = ready ? 'ready' : availability;
   const managedById = new Map(managed.map(s => [s.id, s]));
   function metadata(s: WorkflowSkill) {
     const category = s.category_override || s.category || s.detected_category || 'unknown';
@@ -38,7 +41,7 @@ export function SkillInventory({ skills, managed, frequencies, variants, ready, 
       <div className="flex items-start justify-between gap-2"><h3 className="text-[13px] font-semibold break-all">{s.name}</h3>{actions(s)}</div>
       <p className="text-[12px] text-secondary line-clamp-2" title={s.description || ''}>{s.description || '暂无描述'}</p>
       <div className="text-[12px]">{metadata(s)}</div>
-      <div className="flex items-center justify-between mt-auto border-t border-border-subtle pt-2"><span className="text-[12px] text-secondary">近 {days} 天明确调用</span><strong className="text-[17px] tabular-nums">{ready ? f?.explicit || 0 : '—'}</strong></div>
+      <div className="flex items-center justify-between mt-auto border-t border-border-subtle pt-2"><span className="text-[12px] text-secondary">近 {days} 天明确调用</span><FrequencyBadge count={f?.explicit || 0} days={days} state={frequencyState} large /></div>
       <p className="text-[11px] text-tertiary">声明 {ready ? f?.declared || 0 : '—'} · 读取 {ready ? f?.inferred || 0 : '—'} · {date(f?.lastEvidence)}</p>
       <div className="text-[11px] text-tertiary">Agent 目标：{targets(s)}</div>
       {variants.has(s.name) && <p className="text-[11px] text-tertiary">同名合计，版本待区分</p>}
@@ -55,7 +58,7 @@ export function SkillInventory({ skills, managed, frequencies, variants, ready, 
       return <tr key={s.id} className="border-t border-border-subtle hover:bg-surface-hover">
         <td className="px-3 py-2.5"><button className="text-[13px] font-medium text-left hover:underline break-all" onClick={() => onInspect(s)}>{s.name}</button><p title={s.description || ''} className="text-[11px] text-tertiary truncate mt-1">{s.description || '暂无描述'}</p></td>
         <td className="p-3">{metadata(s)}</td><td className="p-3">{targets(s)}</td>
-        <td className="p-3 text-right"><strong className="text-[14px] tabular-nums">{ready ? f?.explicit || 0 : '—'}</strong>{variants.has(s.name) && <span className="block text-[11px] text-tertiary" title="按名称合计，无法区分具体副本与版本">同名合计</span>}</td>
+        <td className="p-3 text-right"><FrequencyBadge count={f?.explicit || 0} days={days} state={frequencyState} />{variants.has(s.name) && <span className="block text-[11px] text-tertiary" title="按名称合计，无法区分具体副本与版本">同名合计</span>}</td>
         <td className="p-3 text-right tabular-nums text-secondary">{ready ? `${f?.declared || 0} / ${f?.inferred || 0}` : '—'}</td>
         <td className="p-3 text-[11px] text-secondary">{ready ? date(f?.lastEvidence) : '—'}</td><td className="p-2">{actions(s)}</td>
       </tr>;

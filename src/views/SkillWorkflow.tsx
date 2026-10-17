@@ -11,6 +11,7 @@ import { usageSummaries } from '../lib/usage';
 import type { UsageSummary } from '../lib/usage';
 import { hasNameVariants, skillFrequencies } from '../lib/skillFrequency';
 import { SkillInventory } from '../components/SkillInventory';
+import { FrequencyLegend } from '../components/FrequencyBadge';
 
 const categories = [
   { id: 'local_packaged' as SkillCategory, title: '本地封装', Icon: FolderArchive },
@@ -116,9 +117,9 @@ export function SkillWorkflow() {
         <select aria-label="使用情况筛选" className="app-input text-[12px]" value={attention} onChange={e => setAttention(e.target.value)}><option value="all">全部使用情况</option><option value="used" disabled={!frequencyReady}>有明确调用</option><option value="no_explicit" disabled={!frequencyReady}>暂无明确调用</option></select>
       </div>
     </section>
-    <div className="flex items-center justify-between gap-3 text-[11px] text-tertiary"><p>{loading && !data ? '正在发现真实项目…' : `显示 ${skills.length} / ${scopedSkills.length} 个技能 · ${data?.projects.length || 0} 个项目`} · {data?.sync.running ? '正在同步…' : data?.sync.error ? `同步异常：${data.sync.error}` : `刷新 ${time(data?.sync.last_refresh || null)}`}</p><button className="underline text-secondary shrink-0" onClick={() => navigate('/skill-usage')}>统计与证据 ↗</button></div>
+    <div className="flex items-center justify-between gap-3 text-[11px] text-tertiary"><p>{loading && !data ? '正在发现真实项目…' : `显示 ${skills.length} / ${scopedSkills.length} 个技能 · ${data?.projects.length || 0} 个项目`} · {data?.sync.running ? '正在同步…' : data?.sync.error ? `同步异常：${data.sync.error}` : `刷新 ${time(data?.sync.last_refresh || null)}`}</p><FrequencyLegend days={days} /><button className="underline text-secondary shrink-0" onClick={() => navigate('/skill-usage')}>统计与证据 ↗</button></div>
     {usageError ? <p role="alert" className="text-[12px] text-danger">统计暂不可用：{usageError}</p> : project && !scopeId ? <p className="text-[12px] text-secondary">当前项目尚未匹配统计范围。</p> : null}
-    {skills.length ? <SkillInventory skills={skills} managed={managedSkills} frequencies={frequencies} variants={variants} ready={!!frequencyReady} days={days} view={view} onInspect={setConfig} onOpen={id => { openSkillDetailById(id); navigate('/my-skills'); }} /> : <div className="app-panel p-8 text-center text-[13px] text-secondary">{loading && !data ? '正在读取技能清单…' : '当前筛选没有符合条件的技能。'}</div>}
+    {skills.length ? <SkillInventory skills={skills} managed={managedSkills} frequencies={frequencies} variants={variants} ready={!!frequencyReady} availability={usageError ? 'unavailable' : project && !scopeId ? 'unmatched' : 'loading'} days={days} view={view} onInspect={setConfig} onOpen={id => { openSkillDetailById(id); navigate('/my-skills'); }} /> : <div className="app-panel p-8 text-center text-[13px] text-secondary">{loading && !data ? '正在读取技能清单…' : '当前筛选没有符合条件的技能。'}</div>}
     <p className="text-[11px] text-tertiary">调用按已采集来源会话去重；声明与读取另列，零记录不代表未使用。同名证据无法区分副本版本。来源待核对项不会算作本地原创；下载后改动可作为复核候选，不代表质量有问题。</p>
     {config && <SkillConfig skill={config} onClose={closeConfig} onSaved={s => { ++loadSequence.current; setData(s); setConfig(null); }} />}
   </div>;

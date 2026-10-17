@@ -4,6 +4,7 @@ import { governanceCatalog, governanceListScopes } from '../lib/governance';
 import type { GovernanceSkill, Scope } from '../lib/governance';
 import { importLocal, importNmem, usageEvents, usageStatus, usageSummaries } from '../lib/usage';
 import type { UsageEvent, UsageStatus, UsageSummary } from '../lib/usage';
+import { FrequencyBadge, FrequencyLegend } from '../components/FrequencyBadge';
 
 const labels = { explicit_invocation: '明确调用', assistant_declaration: '声明使用', read_inferred: '读取推断' };
 const date = (ts: number | null) => ts ? new Date(ts * 1000).toLocaleString('zh-CN') : '暂无证据';
@@ -21,6 +22,7 @@ export function SkillUsage() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [summariesUnavailable, setSummariesUnavailable] = useState(false);
   const [notice, setNotice] = useState('');
   const requestId = useRef(0);
   const reload = useCallback(async () => {
@@ -31,8 +33,8 @@ export function SkillUsage() {
         usageStatus(), usageSummaries(project || null), usageEvents(), governanceListScopes(), governanceCatalog(),
       ]);
       if (id !== requestId.current) return;
-      setStatus(s); setSummaries(sums); setEvents(es); setScopes(ss); setCatalog(skills); setError('');
-    } catch (e) { if (id === requestId.current) setError(String(e)); }
+      setStatus(s); setSummaries(sums); setEvents(es); setScopes(ss); setCatalog(skills); setError(''); setSummariesUnavailable(false);
+    } catch (e) { if (id === requestId.current) { setError(String(e)); setSummariesUnavailable(true); } }
     finally { if (id === requestId.current) setLoading(false); }
   }, [project]);
   useEffect(() => { void reload(); const timer=window.setInterval(() => void reload(),30000); return () => { window.clearInterval(timer); requestId.current += 1; }; }, [reload]);
@@ -89,9 +91,10 @@ export function SkillUsage() {
       </div>
       {notice && <p role="status" className="text-[13px] text-secondary">{notice}</p>}
     </details>
+    <FrequencyLegend days={days} />
     <section className="app-panel overflow-x-auto">
       <h2 className="text-[14px] font-medium p-4 flex items-center gap-2"><BarChart3 className="h-4 w-4" />近 {days} 天技能频率</h2>
-      {loading ? <p className="p-4 text-[13px] text-tertiary">正在读取…</p> : rows.length ? <table className="w-full text-left text-[13px]"><thead className="text-[12px] text-tertiary border-y border-border-subtle"><tr>{['技能', '项目', '证据数', '明确 / 声明 / 推断', '最近证据'].map(h => <th key={h} className="p-3 font-medium">{h}</th>)}</tr></thead><tbody>{rows.map(r => <tr key={`${r.skill}:${r.project}`} className="border-b border-border-subtle"><td className="p-3 break-all">{r.skill}</td><td className="p-3">{projectName(r.project)}</td><td className="p-3">{r.events}</td><td className="p-3">{r.explicit} / {r.declared} / {r.inferred}</td><td className="p-3 whitespace-nowrap text-[12px]">{date(r.last_used_at)}</td></tr>)}</tbody></table> : <p className="p-4 text-[13px] text-tertiary">当前范围还没有使用证据。技能被实际使用后会自动汇入。</p>}
+      {loading ? <p className="p-4 text-[13px] text-tertiary">正在读取…</p> : rows.length ? <table className="w-full text-left text-[13px]"><thead className="text-[12px] text-tertiary border-y border-border-subtle"><tr>{['技能', '项目', '证据数', '明确调用频率', '声明 / 读取', '最近证据'].map(h => <th key={h} className="p-3 font-medium">{h}</th>)}</tr></thead><tbody>{rows.map(r => <tr key={`${r.skill}:${r.project}`} className="border-b border-border-subtle"><td className="p-3 break-all">{r.skill}</td><td className="p-3">{projectName(r.project)}</td><td className="p-3">{r.events}</td><td className="p-3"><FrequencyBadge count={r.explicit} days={days} state={summariesUnavailable ? 'unavailable' : 'ready'} /></td><td className="p-3">{r.declared} / {r.inferred}</td><td className="p-3 whitespace-nowrap text-[12px]">{date(r.last_used_at)}</td></tr>)}</tbody></table> : <p className="p-4 text-[13px] text-tertiary">当前范围还没有使用证据。技能被实际使用后会自动汇入。</p>}
     </section>
     <section className="app-panel p-4 space-y-3"><h2 className="text-[14px] font-medium">原始证据</h2>{visibleEvents.length ? visibleEvents.map(e => <details key={e.id} className="border-t border-border-subtle pt-3"><summary className="cursor-pointer text-[13px]">{e.skill} · {labels[e.evidence]} · {date(e.occurred_at)}</summary><div className="mt-3 space-y-2 text-[12px] text-secondary"><p>项目：{projectName(e.project)} · Agent：{e.agent || '未知'} · 来源：{e.source}</p><p className="break-all">对话：{e.source_ref || e.session_id || '未提供'}</p><p className="whitespace-pre-wrap break-words">{e.excerpt || '未保存片段'}</p></div></details>) : <p className="text-[13px] text-tertiary">当前范围没有可展示的原文片段。</p>}</section>
   </div>;

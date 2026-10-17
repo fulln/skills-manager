@@ -8,6 +8,13 @@ export interface SkillFrequency {
   lastEvidence: number | null;
 }
 
+// Compare windows using the same weekly rate; declarations and reads never enter this calculation.
+export function frequencyTier(explicit: number | null | undefined, days: number): 'high' | 'low' | 'none' | 'unknown' {
+  if (typeof explicit !== 'number' || !Number.isFinite(explicit) || explicit < 0 || !Number.isFinite(days) || days <= 0) return 'unknown';
+  if (explicit === 0) return 'none';
+  return explicit * 7 >= days ? 'high' : 'low';
+}
+
 // Summaries already deduplicate source/session/skill. Only sum one time window.
 export function skillFrequencies(rows: UsageSummary[], days: number, project: string | null) {
   const result = new Map<string, SkillFrequency>();
