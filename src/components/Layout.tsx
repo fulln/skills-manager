@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { WorkflowSidebar as Sidebar } from "./WorkflowSidebar";
 import { StatusBanner } from "./StatusBanner";
 import { CommandPalette } from "./CommandPalette";
@@ -13,6 +13,7 @@ export function Layout() {
   const { appError, refreshAppData } = useApp();
   const onDrag = useDragWindow();
   const navigate = useNavigate();
+  const location = useLocation();
   const [managementMode, setManagementMode] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -60,13 +61,14 @@ export function Layout() {
                 tone="danger"
               />
             ) : null}
-            <div className="app-panel px-4 py-3 text-[12px] text-secondary" role="status">
+            <div className="px-1 text-[11px] text-tertiary" role="status">
               {managementMode === true
-                ? "Skills Manager Dev · 已接管共享技能库 · 安装、更新、卸载和部署由此界面管理。"
+                ? "Skills Manager Dev · 正在管理共享技能库"
                 : managementMode === false
                   ? "Skills Manager Dev · 隔离开发模式 · 当前操作不会修改正式技能库。"
                   : "Skills Manager Dev · 正在确认管理模式…"}
             </div>
+            {location.pathname !== '/' && location.pathname !== '/settings' && <button className="app-button-secondary self-start" onClick={() => navigate('/')}>← 返回技能</button>}
             <Outlet />
           </div>
         </div>
