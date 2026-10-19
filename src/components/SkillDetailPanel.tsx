@@ -28,6 +28,7 @@ import { AgentToggleSection, type AgentToggleItem } from "./AgentToggleSection";
 import { SkillProjectsSection } from "./SkillProjectsSection";
 import { SyncDots } from "./SyncDots";
 import { SkillProjectLinks } from "./SkillProjectLinks";
+import { SkillUninstallDialog } from "./SkillUninstallDialog";
 
 interface Props {
   skill: ManagedSkill | null;
@@ -96,6 +97,7 @@ function SkillDetailPanelContent({
   onProjectsChanged?: () => void;
 }) {
   const { t } = useTranslation();
+  const [uninstallOpen, setUninstallOpen] = useState(false);
   const [doc, setDoc] = useState<SkillDocument | null>(null);
   const [sourceDoc, setSourceDoc] = useState<SourceSkillDocument | null>(null);
   const [sourceDiff, setSourceDiff] = useState<SkillSourceDiff | null>(null);
@@ -249,6 +251,7 @@ function SkillDetailPanelContent({
           {skill.central_path}
         </span>
       </div>
+      <div className="mt-3 flex justify-end"><button type="button" aria-label={`卸载 ${skill.name}`} className="rounded-lg border border-border-subtle px-3 py-1.5 text-[12px] text-secondary hover:bg-surface-hover hover:text-danger" onClick={() => setUninstallOpen(true)}>卸载技能</button></div>
       <SkillProjectLinks key={skill.id} skill={skill} />
       {metadataItems.length > 0 && (
         <div className="mt-4 rounded-xl border border-border-subtle bg-surface/70">
@@ -306,6 +309,8 @@ function SkillDetailPanelContent({
   );
 
   return (
+    <>
+    {uninstallOpen && <SkillUninstallDialog target={{ id: skill.id, name: skill.name, path: skill.central_path, managed: true }} onClose={() => setUninstallOpen(false)} onRemoved={() => { setUninstallOpen(false); onClose(); }} />}
     <DetailSheet
       open={true}
       title={skill.name}
@@ -386,5 +391,6 @@ function SkillDetailPanelContent({
         <div className="mt-12 text-center text-[13px] text-muted">{t("common.documentMissing")}</div>
       )}
     </DetailSheet>
+    </>
   );
 }

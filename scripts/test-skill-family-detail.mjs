@@ -8,7 +8,7 @@ const url = new URL('../src/components/SkillFamilyDetail.tsx', import.meta.url);
 const compiled = ts.transpileModule(fs.readFileSync(url, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
 function harness(managedIds = new Set()) {
   const values = [], effects = [], requests = [];
-  let index = 0, managed;
+  let index = 0, managed, uninstalled;
   const hooks = {
     useState(initial) {
       const key = index++;
@@ -37,12 +37,12 @@ function harness(managedIds = new Set()) {
     throw new Error(`Unexpected dependency ${id}`);
   };
   vm.runInNewContext('(function(require,exports,React){' + compiled + '\n})')(require, exports, React);
-  const a = { id: 'a', name: 'openspec-apply', path: '/project-a/skill', project_id: 'pa' };
-  const b = { id: 'b', name: 'openspec-apply', path: '/project-b/skill', project_id: 'pb' };
-  const c = { id: 'c', name: 'openspec-propose', path: '/project-a/propose', project_id: 'pa' };
+  const a = { id: 'a', name: 'openspec-apply', path: '/project-a/skill', scope: 'project', project_id: 'pa' };
+  const b = { id: 'b', name: 'openspec-apply', path: '/project-b/skill', scope: 'project', project_id: 'pb' };
+  const c = { id: 'c', name: 'openspec-propose', path: '/project-a/propose', scope: 'project', project_id: 'pa' };
   const family = { id: 'suite:openspec', title: 'OpenSpec', description: 'A real suite', stages: new Map([['openspec-apply', [a, b]], ['openspec-propose', [c]]]) };
-  const render = () => { index = 0; return exports.SkillFamilyDetail({ family, projects: [{ id: 'pa', name: 'Project A' }, { id: 'pb', name: 'Project B' }], managedIds, onOpenManaged(id) { managed = id; }, onClose() {} }); };
-  return { render, requests, unmount() { effects.forEach(fn => fn?.()); }, managed: () => managed };
+  const render = () => { index = 0; return exports.SkillFamilyDetail({ family, projects: [{ id: 'pa', name: 'Project A' }, { id: 'pb', name: 'Project B' }], managedIds, onUninstall(skill) { uninstalled = skill; }, onOpenManaged(id) { managed = id; }, onClose() {} }); };
+  return { render, requests, family, uninstalled: () => uninstalled, unmount() { effects.forEach(fn => fn?.()); }, managed: () => managed };
 }
 function nodes(value) {
   if (!value || typeof value !== 'object') return [];
@@ -87,3 +87,14 @@ const gone = harness(); button(gone.render(), 'Project A').props.onClick(); gone
 gone.requests[0].resolve({ content: 'late after unmount' }); await flush();
 assert(!find(gone.render(), n => n.type === 'skill-markdown'));
 console.log('Family stage/project selection, exact document ID, stale request, managed handoff and error checks passed');
+
+const uninstall = harness();
+find(uninstall.render(), n => n.props?.['aria-label'] === '卸载 openspec-apply · Project B').props.onClick();
+assert.equal(uninstall.uninstalled().id, 'b', 'Uninstall receives the exact selected project copy');
+button(uninstall.render(), 'Project B').props.onClick();
+uninstall.requests[0].resolve({ content: 'removed B' }); await flush();
+uninstall.family.stages.set('openspec-apply', [uninstall.family.stages.get('openspec-apply')[0]]);
+assert(!find(uninstall.render(), n => n.type === 'skill-markdown'), 'Removed copy must not remain open as an actionable document');
+uninstall.family.stages.delete('openspec-apply');
+assert.equal(find(uninstall.render(), n => n.props?.['aria-label'] === '技能阶段').props.value, 'openspec-propose', 'Removing the last copy selects an existing member');
+console.log('Family exact-copy uninstall and post-removal selection checks passed');

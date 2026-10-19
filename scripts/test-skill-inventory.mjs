@@ -23,7 +23,7 @@ function loadTS(url) {
 }
 const { SkillInventory } = loadTS(new URL('../src/components/SkillInventory.tsx', import.meta.url));
 const skill = { id: 'a', name: 'example', description: 'A real purpose', scope: 'project', role: 'specialist', path: '/skills/example', category: 'unknown' };
-const props = { skills: [skill], managed: [], frequencies: new Map([['example', { explicit: 2, declared: 5, inferred: 9, lastEvidence: null }]]), variants: new Set(), ready: true, days: 30, onOpen() {}, onInspect() {}, onViewFamily() {} };
+const props = { skills: [skill], managed: [], frequencies: new Map([['example', { explicit: 2, declared: 5, inferred: 9, lastEvidence: null }]]), variants: new Set(), ready: true, days: 30, onOpen() {}, onInspect() {}, onViewFamily() {}, onUninstall() {} };
 const render = extra => renderToStaticMarkup(React.createElement(SkillInventory, { ...props, ...extra }));
 const list = render({ view: 'list' });
 assert.match(list, /来源待核对/);
@@ -135,3 +135,14 @@ assert.equal((baoyuMarkup.match(/<article /g) || []).length, 1);
 assert.match(render({ view: 'list', skills: baoyuCopies }), /查看 Baoyu 系列 技能组/);
 assert.equal(groupSkillFamilies([baoyuCopies[0]], new Map())[0].family.title, 'Baoyu 系列');
 console.log('Baoyu collection grouping, distinct legacy skills, one-card rendering and unmultiplied usage checks passed');
+
+assert.match(render({ view: 'cards', managed: [{ id: skill.id, targets: [] }] }), /aria-label="卸载 example"/);
+assert.match(render({ view: 'list', managed: [{ id: skill.id, targets: [] }] }), /aria-label="卸载 example"/);
+assert.match(baoyuMarkup, /选择卸载 Baoyu 系列 中的技能/);
+let uninstallTarget;
+const inventoryTree = SkillInventory({ ...props, view: 'cards', managed: [{ id: skill.id, targets: [] }], onUninstall(value) { uninstallTarget = value; } });
+nodes(inventoryTree).find(n => n.props?.['aria-label'] === '卸载 example').props.onClick();
+assert.equal(uninstallTarget.id, skill.id);
+const unmanagedGlobal = SkillInventory({ ...props, view: 'cards', skills: [{ ...skill, scope: 'global' }] });
+assert.equal(nodes(unmanagedGlobal).find(n => n.props?.['aria-label'] === '卸载 example').props.disabled, true);
+console.log('Visible card/list uninstall buttons, exact ID routing and unmanaged global protection checks passed');

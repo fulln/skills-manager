@@ -1028,6 +1028,7 @@ pub fn run() {
             commands::workflow::workflow_set_category,
             commands::workflow::workflow_refresh,
             commands::workflow::workflow_recommend,
+            commands::workflow::workflow_uninstall_project,
             // Tools
             commands::tools::get_tool_status,
             commands::tools::set_tool_enabled,

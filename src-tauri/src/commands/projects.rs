@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::Instant;
 
 use serde::Serialize;
@@ -278,7 +278,7 @@ pub(crate) fn ensure_dir_within_root(path: &Path, root: &Path) -> Result<(), App
     Ok(())
 }
 
-fn remove_workspace_skill_target(path: &Path) -> Result<(), AppError> {
+pub(crate) fn remove_workspace_skill_target(path: &Path) -> Result<(), AppError> {
     sync_engine::remove_target(path).map_err(AppError::io)
 }
 

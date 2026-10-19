@@ -28,6 +28,7 @@ fn allowed_in_mode(command: &str, management: bool) -> bool {
             | "workflow_set_category"
             | "workflow_refresh"
             | "workflow_recommend"
+            | "workflow_uninstall_project"
             | "get_tool_status"
             | "set_tool_enabled"
             | "set_all_tools_enabled"
@@ -176,7 +177,7 @@ mod tests {
     use super::*;
     #[test]
     fn management_opens_existing_handlers_but_not_application_replacement() {
-        for c in ["install_local", "delete_managed_skill", "sync_skill_to_tool", "set_skill_tags", "set_settings"] {
+        for c in ["install_local", "delete_managed_skill", "sync_skill_to_tool", "set_skill_tags", "set_settings", "workflow_uninstall_project"] {
             assert!(allowed_in_mode(c, true), "{c}");
             assert!(!allowed_in_mode(c, false), "{c}");
         }

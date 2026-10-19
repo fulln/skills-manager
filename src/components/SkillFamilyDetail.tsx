@@ -11,11 +11,12 @@ interface Props {
   onClose: () => void;
   managedIds: Set<string>;
   onOpenManaged: (id: string) => void;
+  onUninstall: (skill: WorkflowSkill) => void;
 }
 
 type Reading = { skill: WorkflowSkill; projectName: string };
 
-export function SkillFamilyDetail({ family, projects, onClose, managedIds, onOpenManaged }: Props) {
+export function SkillFamilyDetail({ family, projects, onClose, managedIds, onOpenManaged, onUninstall }: Props) {
   const selectorLabel = family.id === 'collection:baoyu' ? '系列技能' : '技能阶段';
   const stages = useMemo(() => [...family.stages.entries()], [family.stages]);
   const [stage, setStage] = useState(stages[0]?.[0] || '');
@@ -28,10 +29,11 @@ export function SkillFamilyDetail({ family, projects, onClose, managedIds, onOpe
 
   useEffect(() => () => { ++sequence.current; }, []);
 
-  const copies = useMemo(() => {
-    const skills = family.stages.get(stage) || [];
-    return skills.filter((skill) => !projectId || skill.project_id === projectId);
-  }, [family.stages, projectId, stage]);
+  const selectedStage = family.stages.has(stage) ? stage : stages[0]?.[0] || '';
+  const stageCopies = family.stages.get(selectedStage) || [];
+  const selectedProjectId = stageCopies.some(skill => skill.project_id === projectId) ? projectId : '';
+  const copies = stageCopies.filter(skill => !selectedProjectId || skill.project_id === selectedProjectId);
+  const activeReading = reading && [...family.stages.values()].some(skills => skills.some(skill => skill.id === reading.skill.id)) ? reading : null;
 
   const projectName = (id: string | null) =>
     id ? projects.find((project) => project.id === id)?.name || id : '本地';
@@ -64,15 +66,20 @@ export function SkillFamilyDetail({ family, projects, onClose, managedIds, onOpe
     }
   }
 
+  function uninstallButton(skill: WorkflowSkill) {
+    const allowed = managedIds.has(skill.id) || (skill.scope === 'project' && !!skill.project_id);
+    return <button type="button" aria-label={`卸载 ${skill.name} · ${projectName(skill.project_id)}`} title={allowed ? '卸载此副本' : '由原插件或 Agent 管理，请在原管理器卸载'} disabled={!allowed} className="shrink-0 rounded-lg border border-border-subtle px-3 py-1.5 text-[12px] text-secondary hover:bg-surface-hover hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => onUninstall(skill)}>卸载</button>;
+  }
+
   return (
-    <DetailSheet open title={family.title} description={reading ? undefined : family.description} onClose={onClose}>
-      {reading ? (
+    <DetailSheet open title={family.title} description={activeReading ? undefined : family.description} onClose={onClose}>
+      {activeReading ? (
         <div>
           <button type="button" className="mb-4 text-[12px] text-accent-light hover:underline" onClick={back}>
             ← 返回技能组
           </button>
-          <h3 className="text-[17px] font-semibold text-primary">{reading.skill.name}</h3>
-          <p className="mt-1 break-all text-[12px] text-tertiary">{document?.central_path || reading.skill.path}</p>
+          <div className="flex items-center justify-between gap-3"><h3 className="text-[17px] font-semibold text-primary">{activeReading.skill.name}</h3>{uninstallButton(activeReading.skill)}</div>
+          <p className="mt-1 break-all text-[12px] text-tertiary">{document?.central_path || activeReading.skill.path}</p>
           <div className="mt-5">
             {busy ? <p className="text-[13px] text-secondary">正在读取技能说明…</p> : error ? <p role="alert" className="text-[12px] text-danger">{error}</p> : document ? <SkillMarkdown content={document.content} /> : null}
           </div>
@@ -82,20 +89,20 @@ export function SkillFamilyDetail({ family, projects, onClose, managedIds, onOpe
           <div className="flex flex-wrap gap-3">
             <label className="flex items-center gap-2 text-[12px] text-secondary">
               {selectorLabel}
-              <select aria-label={selectorLabel} className="app-input h-8" value={stage} onChange={(event) => { setStage(event.target.value); setProjectId(''); }}>
+              <select aria-label={selectorLabel} className="app-input h-8" value={selectedStage} onChange={(event) => { setStage(event.target.value); setProjectId(''); }}>
                 {stages.map(([name]) => <option key={name} value={name}>{name}</option>)}
               </select>
             </label>
             <label className="flex items-center gap-2 text-[12px] text-secondary">
               所属项目
-              <select aria-label="所属项目" className="app-input h-8" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+              <select aria-label="所属项目" className="app-input h-8" value={selectedProjectId} onChange={(event) => setProjectId(event.target.value)}>
                 <option value="">全部项目</option>
-                {projects.filter((project) => (family.stages.get(stage) || []).some((skill) => skill.project_id === project.id)).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                {projects.filter((project) => (family.stages.get(selectedStage) || []).some((skill) => skill.project_id === project.id)).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
               </select>
             </label>
           </div>
           <div className="space-y-2">
-            {copies.map((skill) => <button key={skill.id} type="button" className="app-panel block w-full p-3 text-left" onClick={() => void show(skill)}><strong className="text-[13px]">查看 {skill.name} · {projectName(skill.project_id)}</strong><p className="mt-1 break-all text-[12px] text-secondary">{skill.path}</p></button>)}
+            {copies.map((skill) => <div key={skill.id} className="app-panel flex items-center gap-3 p-3"><button type="button" className="min-w-0 flex-1 text-left" onClick={() => void show(skill)}><strong className="text-[13px]">查看 {skill.name} · {projectName(skill.project_id)}</strong><p className="mt-1 break-all text-[12px] text-secondary">{skill.path}</p></button>{uninstallButton(skill)}</div>)}
             {!copies.length && <p className="text-[12px] text-secondary">当前筛选没有技能副本。</p>}
           </div>
         </div>
