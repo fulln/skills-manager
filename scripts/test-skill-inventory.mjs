@@ -146,3 +146,9 @@ assert.equal(uninstallTarget.id, skill.id);
 const unmanagedGlobal = SkillInventory({ ...props, view: 'cards', skills: [{ ...skill, scope: 'global' }] });
 assert.equal(nodes(unmanagedGlobal).find(n => n.props?.['aria-label'] === '卸载 example').props.disabled, true);
 console.log('Visible card/list uninstall buttons, exact ID routing and unmanaged global protection checks passed');
+
+assert.doesNotMatch(render({ view: 'cards', managed: [{ id: skill.id, targets: [] }] }), />卸载<\/button>/);
+assert.doesNotMatch(baoyuMarkup, />选择卸载<\/button>/);
+assert.match(baoyuMarkup, /title="选择具体技能卸载"/);
+assert.match(baoyuMarkup, /lucide-trash/);
+console.log('Uninstall uses icon-only buttons while retaining tooltip and accessible labels.');

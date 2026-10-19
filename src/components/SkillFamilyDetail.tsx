@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { DetailSheet } from './DetailSheet';
 import { SkillMarkdown } from './SkillMarkdown';
 import { getSkillDocument, type SkillDocument } from '../lib/tauri';
@@ -68,7 +69,7 @@ export function SkillFamilyDetail({ family, projects, onClose, managedIds, onOpe
 
   function uninstallButton(skill: WorkflowSkill) {
     const allowed = managedIds.has(skill.id) || (skill.scope === 'project' && !!skill.project_id);
-    return <button type="button" aria-label={`卸载 ${skill.name} · ${projectName(skill.project_id)}`} title={allowed ? '卸载此副本' : '由原插件或 Agent 管理，请在原管理器卸载'} disabled={!allowed} className="shrink-0 rounded-lg border border-border-subtle px-3 py-1.5 text-[12px] text-secondary hover:bg-surface-hover hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => onUninstall(skill)}>卸载</button>;
+    return <button type="button" aria-label={`卸载 ${skill.name} · ${projectName(skill.project_id)}`} title={allowed ? '卸载此副本' : '由原插件或 Agent 管理，请在原管理器卸载'} disabled={!allowed} className="app-icon-button shrink-0 hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => onUninstall(skill)}><Trash2 size={15} /></button>;
   }
 
   return (

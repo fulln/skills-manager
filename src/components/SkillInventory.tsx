@@ -1,4 +1,4 @@
-import { FileSearch, SlidersHorizontal } from 'lucide-react';
+import { FileSearch, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { FrequencyBadge } from './FrequencyBadge';
 import type { ManagedSkill } from '../lib/tauri';
 import type { SkillFrequency } from '../lib/skillFrequency';
@@ -38,7 +38,7 @@ export function SkillInventory({ skills, managed, frequencies, variants, ready, 
     return <span title={tools.join('、')} className="text-[12px] text-secondary">{tools.length ? `${tools.slice(0, 2).join(' / ')}${tools.length > 2 ? ` +${tools.length - 2}` : ''}` : managedById.has(s.id) ? '未配置' : '项目内发现'}</span>;
   }
   function actions(s: WorkflowSkill) {
-    return <div className="flex shrink-0 items-center justify-end gap-1">{managedById.has(s.id) && <button className="app-icon-button" title="查看技能内容" aria-label={`查看 ${s.name}`} onClick={() => onOpen(s.id)}><FileSearch size={15} /></button>}<button className="app-icon-button" title="查看来源与配置" aria-label={`配置 ${s.name}`} onClick={() => onInspect(s)}><SlidersHorizontal size={15} /></button><button type="button" aria-label={`卸载 ${s.name}`} title={managedById.has(s.id) || (s.scope === 'project' && s.project_id) ? '卸载这项技能' : '由原插件或 Agent 管理，请在原管理器卸载'} disabled={!managedById.has(s.id) && !(s.scope === 'project' && s.project_id)} className="shrink-0 rounded-lg px-2 py-1 text-[12px] text-secondary hover:bg-surface-hover hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => onUninstall(s)}>卸载</button></div>;
+    return <div className="flex shrink-0 items-center justify-end gap-1">{managedById.has(s.id) && <button className="app-icon-button" title="查看技能内容" aria-label={`查看 ${s.name}`} onClick={() => onOpen(s.id)}><FileSearch size={15} /></button>}<button className="app-icon-button" title="查看来源与配置" aria-label={`配置 ${s.name}`} onClick={() => onInspect(s)}><SlidersHorizontal size={15} /></button><button type="button" aria-label={`卸载 ${s.name}`} title={managedById.has(s.id) || (s.scope === 'project' && s.project_id) ? '卸载这项技能' : '由原插件或 Agent 管理，请在原管理器卸载'} disabled={!managedById.has(s.id) && !(s.scope === 'project' && s.project_id)} className="app-icon-button hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => onUninstall(s)}><Trash2 size={15} /></button></div>;
   }
   if (view === 'cards') return <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">{entries.map(entry => {
     if (entry.kind === 'family') return <SkillFamilyCard key={entry.family.id} family={entry.family} onView={onViewFamily} days={days} state={frequencyState} view="cards" />;
@@ -58,7 +58,7 @@ export function SkillInventory({ skills, managed, frequencies, variants, ready, 
     <caption className="sr-only">技能清单与近 {days} 天使用证据</caption>
     <thead className="bg-bg-secondary text-tertiary"><tr>
       <th className="w-[32%] p-3 font-medium">技能 / 用途</th><th className="w-[14%] p-3 font-medium">来源 / 层级</th><th className="w-[14%] p-3 font-medium">Agent 目标</th>
-      <th className="w-[10%] p-3 font-medium text-right">明确调用</th><th className="w-[11%] p-3 font-medium text-right">声明 / 读取</th><th className="w-[12%] p-3 font-medium">最近证据</th><th className="w-[150px] p-3 font-medium text-right">操作</th>
+      <th className="w-[10%] p-3 font-medium text-right">明确调用</th><th className="w-[11%] p-3 font-medium text-right">声明 / 读取</th><th className="w-[12%] p-3 font-medium">最近证据</th><th className="w-[112px] p-3 font-medium text-right">操作</th>
     </tr></thead>
     <tbody>{entries.map(entry => {
       if (entry.kind === 'family') return <SkillFamilyCard key={entry.family.id} family={entry.family} onView={onViewFamily} days={days} state={frequencyState} view="list" />;

@@ -6,6 +6,7 @@ import {
   Github,
   HardDrive,
   Globe,
+  Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../utils";
@@ -250,8 +251,8 @@ function SkillDetailPanelContent({
         <span className="font-mono truncate" title={skill.central_path}>
           {skill.central_path}
         </span>
+        <span className="ml-auto"><button type="button" aria-label={`卸载 ${skill.name}`} title="卸载技能" className="app-icon-button shrink-0 hover:text-danger" onClick={() => setUninstallOpen(true)}><Trash2 size={15} /></button></span>
       </div>
-      <div className="mt-3 flex justify-end"><button type="button" aria-label={`卸载 ${skill.name}`} className="rounded-lg border border-border-subtle px-3 py-1.5 text-[12px] text-secondary hover:bg-surface-hover hover:text-danger" onClick={() => setUninstallOpen(true)}>卸载技能</button></div>
       <SkillProjectLinks key={skill.id} skill={skill} />
       {metadataItems.length > 0 && (
         <div className="mt-4 rounded-xl border border-border-subtle bg-surface/70">

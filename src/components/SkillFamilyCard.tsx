@@ -1,4 +1,4 @@
-import { FileSearch } from 'lucide-react';
+import { FileSearch, Trash2 } from 'lucide-react';
 import { FrequencyBadge } from './FrequencyBadge';
 import type { SkillFamily } from '../lib/skillFamily';
 
@@ -18,7 +18,7 @@ export function SkillFamilyCard({ family, onView, days, state, view }: Props) {
   const scope = scopes.length === 1 ? ({ global: '全局', domain: '领域', project: '项目' }[scopes[0]] || scopes[0]) : '多种范围';
   const targets = members.every(s => !!s.project_id) ? '项目内发现' : '沿用各副本配置';
   const description = family.description;
-  const action = <div className="flex shrink-0 items-center gap-1"><button className="app-icon-button" title="查看技能组" aria-label={`查看 ${family.title} 技能组`} onClick={() => onView(family)}><FileSearch size={15} /></button><button type="button" aria-label={`选择卸载 ${family.title} 中的技能`} className="rounded-lg px-2 py-1 text-[12px] text-secondary hover:bg-surface-hover hover:text-danger" onClick={() => onView(family)}>选择卸载</button></div>;
+  const action = <div className="flex shrink-0 items-center gap-1"><button className="app-icon-button" title="查看技能组" aria-label={`查看 ${family.title} 技能组`} onClick={() => onView(family)}><FileSearch size={15} /></button><button type="button" aria-label={`选择卸载 ${family.title} 中的技能`} title="选择具体技能卸载" className="app-icon-button hover:text-danger" onClick={() => onView(family)}><Trash2 size={15} /></button></div>;
   const categories = [...new Set(members.map(s => s.category_override || s.category || s.detected_category || 'unknown'))];
   const source = categories.length === 1 ? ({ local_packaged: '本地封装', downloaded: '下载', downloaded_modified: '下载后改动', unknown: '来源待核对' }[categories[0]]) : '多种来源';
   const last = family.total.lastEvidence ? new Date(family.total.lastEvidence * 1000).toLocaleDateString('zh-CN') : '暂无证据';

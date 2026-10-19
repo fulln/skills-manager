@@ -29,6 +29,7 @@ function harness(managedIds = new Set()) {
   const exports = {};
   const require = id => {
     if (id === 'react') return hooks;
+    if (id === 'lucide-react') return { Trash2: 'trash-icon' };
     if (id === './DetailSheet') return { DetailSheet: 'detail-sheet' };
     if (id === './SkillMarkdown') return { SkillMarkdown: 'skill-markdown' };
     if (id === '../lib/tauri') return { getSkillDocument(skillId) {
