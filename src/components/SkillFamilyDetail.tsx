@@ -16,6 +16,7 @@ interface Props {
 type Reading = { skill: WorkflowSkill; projectName: string };
 
 export function SkillFamilyDetail({ family, projects, onClose, managedIds, onOpenManaged }: Props) {
+  const selectorLabel = family.id === 'collection:baoyu' ? '系列技能' : '技能阶段';
   const stages = useMemo(() => [...family.stages.entries()], [family.stages]);
   const [stage, setStage] = useState(stages[0]?.[0] || '');
   const [projectId, setProjectId] = useState('');
@@ -80,8 +81,8 @@ export function SkillFamilyDetail({ family, projects, onClose, managedIds, onOpe
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3">
             <label className="flex items-center gap-2 text-[12px] text-secondary">
-              技能阶段
-              <select aria-label="技能阶段" className="app-input h-8" value={stage} onChange={(event) => { setStage(event.target.value); setProjectId(''); }}>
+              {selectorLabel}
+              <select aria-label={selectorLabel} className="app-input h-8" value={stage} onChange={(event) => { setStage(event.target.value); setProjectId(''); }}>
                 {stages.map(([name]) => <option key={name} value={name}>{name}</option>)}
               </select>
             </label>
