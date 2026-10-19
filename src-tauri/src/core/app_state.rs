@@ -52,7 +52,10 @@ impl Default for StartupTimings {
 }
 
 pub fn initialize_store() -> Result<(Arc<SkillStore>, StartupTimings)> {
-    initialize_store_inner(true, true)
+    // Taking over an existing library must not redeploy the active preset or
+    // migrate its root just because the replacement desktop app starts.
+    let takeover = central_repo::manages_existing_library();
+    initialize_store_inner(!takeover, !takeover)
 }
 
 pub fn initialize_cli_store() -> Result<Arc<SkillStore>> {
@@ -180,9 +183,13 @@ fn initialize_store_inner(
     }
 
     let step = Instant::now();
-    let changed = scenario_service::restore_all_skills_sync_included(&store)
-        .map_err(|e| anyhow::anyhow!(e.to_string()))
-        .context("Failed to restore skill sync inclusion")?;
+    let changed = if central_repo::manages_existing_library() {
+        false
+    } else {
+        scenario_service::restore_all_skills_sync_included(&store)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))
+            .context("Failed to restore skill sync inclusion")?
+    };
     timings.restore_sync_included_ms = step.elapsed().as_millis();
     timings.restore_sync_included_changed = changed;
     if changed {

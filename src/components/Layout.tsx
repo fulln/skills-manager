@@ -1,17 +1,24 @@
-import { useEffect } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
-import { Sidebar } from "./Sidebar";
+import { useEffect, useState } from "react";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { WorkflowSidebar as Sidebar } from "./WorkflowSidebar";
 import { StatusBanner } from "./StatusBanner";
 import { CommandPalette } from "./CommandPalette";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "react-i18next";
 import { useDragWindow } from "../hooks/useDragWindow";
+import { getManagementMode } from "../lib/tauri";
 
 export function Layout() {
   const { t } = useTranslation();
   const { appError, refreshAppData } = useApp();
   const onDrag = useDragWindow();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [managementMode, setManagementMode] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getManagementMode().then(setManagementMode).catch(() => setManagementMode(false));
+  }, []);
 
   // Cmd+, to open Settings
   useEffect(() => {
@@ -54,6 +61,14 @@ export function Layout() {
                 tone="danger"
               />
             ) : null}
+            <div className="px-1 text-[11px] text-tertiary" role="status">
+              {managementMode === true
+                ? "Skills Manager Dev · 正在管理共享技能库"
+                : managementMode === false
+                  ? "Skills Manager Dev · 隔离开发模式 · 当前操作不会修改正式技能库。"
+                  : "Skills Manager Dev · 正在确认管理模式…"}
+            </div>
+            {location.pathname !== '/' && location.pathname !== '/settings' && location.pathname !== '/skill-console' && <button className="app-button-secondary self-start" onClick={() => navigate(location.state?.from === '/skill-console' ? '/skill-console' : '/')}>{location.state?.from === '/skill-console' ? '← 返回控制台' : '← 返回技能'}</button>}
             <Outlet />
           </div>
         </div>

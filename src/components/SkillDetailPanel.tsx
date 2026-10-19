@@ -6,6 +6,7 @@ import {
   Github,
   HardDrive,
   Globe,
+  Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../utils";
@@ -27,6 +28,8 @@ import { SkillMarkdown } from "./SkillMarkdown";
 import { AgentToggleSection, type AgentToggleItem } from "./AgentToggleSection";
 import { SkillProjectsSection } from "./SkillProjectsSection";
 import { SyncDots } from "./SyncDots";
+import { SkillProjectLinks } from "./SkillProjectLinks";
+import { SkillUninstallDialog } from "./SkillUninstallDialog";
 
 interface Props {
   skill: ManagedSkill | null;
@@ -95,6 +98,7 @@ function SkillDetailPanelContent({
   onProjectsChanged?: () => void;
 }) {
   const { t } = useTranslation();
+  const [uninstallOpen, setUninstallOpen] = useState(false);
   const [doc, setDoc] = useState<SkillDocument | null>(null);
   const [sourceDoc, setSourceDoc] = useState<SourceSkillDocument | null>(null);
   const [sourceDiff, setSourceDiff] = useState<SkillSourceDiff | null>(null);
@@ -247,7 +251,9 @@ function SkillDetailPanelContent({
         <span className="font-mono truncate" title={skill.central_path}>
           {skill.central_path}
         </span>
+        <span className="ml-auto"><button type="button" aria-label={`卸载 ${skill.name}`} title="卸载技能" className="app-icon-button shrink-0 hover:text-danger" onClick={() => setUninstallOpen(true)}><Trash2 size={15} /></button></span>
       </div>
+      <SkillProjectLinks key={skill.id} skill={skill} />
       {metadataItems.length > 0 && (
         <div className="mt-4 rounded-xl border border-border-subtle bg-surface/70">
           <button
@@ -304,6 +310,8 @@ function SkillDetailPanelContent({
   );
 
   return (
+    <>
+    {uninstallOpen && <SkillUninstallDialog target={{ id: skill.id, name: skill.name, path: skill.central_path, managed: true }} onClose={() => setUninstallOpen(false)} onRemoved={() => { setUninstallOpen(false); onClose(); }} />}
     <DetailSheet
       open={true}
       title={skill.name}
@@ -384,5 +392,6 @@ function SkillDetailPanelContent({
         <div className="mt-12 text-center text-[13px] text-muted">{t("common.documentMissing")}</div>
       )}
     </DetailSheet>
+    </>
   );
 }

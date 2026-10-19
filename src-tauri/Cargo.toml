@@ -58,3 +58,12 @@ clap = { version = "4.5", features = ["derive"] }
 
 [target.'cfg(windows)'.dependencies]
 junction = "2"
+
+# Development deliverables do not need multi-gigabyte debug symbol caches.
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

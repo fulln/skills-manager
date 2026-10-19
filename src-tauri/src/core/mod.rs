@@ -13,6 +13,7 @@ pub mod git_backup;
 pub mod git_credentials;
 pub mod git_fetcher;
 pub mod github_api;
+pub mod governance;
 pub mod install_cancel;
 pub mod installer;
 pub mod log_sanitize;
@@ -34,4 +35,11 @@ pub mod sync_metadata;
 pub mod timing;
 pub mod tool_adapters;
 pub mod tool_service;
+pub mod usage;
 pub mod well_known;
+
+pub mod dev_policy;
+
+pub mod usage_local;
+pub mod usage_live;
+pub mod workflow;

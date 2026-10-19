@@ -7,13 +7,17 @@ import { CloseActionGuard } from "./components/CloseActionGuard";
 import { FirstRunRestoreDialog } from "./components/FirstRunRestoreDialog";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./views/Dashboard";
-import { MySkills } from "./views/MySkills";
 import { WorkspaceView } from "./views/WorkspaceView";
 import { CODING_WORKSPACE_CONFIG, LOBSTER_WORKSPACE_CONFIG } from "./views/workspaceConfigs";
 import { InstallSkills } from "./views/InstallSkills";
 import { Settings } from "./views/Settings";
 import { ProjectDetail } from "./views/ProjectDetail";
 import { Backup } from "./views/Backup";
+import { SkillGovernance } from "./views/SkillGovernance";
+import { SkillWorkflow } from "./views/SkillWorkflow";
+import { SkillUsage } from "./views/SkillUsage";
+import { SkillConsolePage } from "./views/SkillConsolePage";
+import { MySkills } from "./views/MySkills";
 
 function ThemedToaster() {
   const { resolvedTheme } = useThemeContext();
@@ -39,7 +43,11 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<SkillWorkflow />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/skill-governance" element={<SkillGovernance />} />
+              <Route path="/skill-usage" element={<SkillUsage />} />
+              <Route path="/skill-console" element={<SkillConsolePage />} />
               <Route path="/my-skills" element={<MySkills />} />
               <Route path="/global-workspace" element={<WorkspaceView config={CODING_WORKSPACE_CONFIG} />} />
               <Route path="/global-workspace/:agentKey" element={<WorkspaceView config={CODING_WORKSPACE_CONFIG} />} />

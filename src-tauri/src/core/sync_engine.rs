@@ -295,6 +295,7 @@ pub fn sync_skill(
     mode: SyncMode,
     policy: ReplacePolicy<'_>,
 ) -> Result<SyncMode> {
+    ensure_dev_write_target(target)?;
     // Internal self-check uses no hash context, so Copy mode always
     // proceeds — the caller (e.g. `sync_desired_targets`) is the place
     // that knows about freshness and can short-circuit.
@@ -578,6 +579,7 @@ fn remove_link(target: &Path) -> Result<()> {
 /// (or [`sync_skill`]) instead; this remains for callers that have already
 /// established ownership another way.
 pub fn remove_target(target: &Path) -> Result<()> {
+    ensure_dev_write_target(target)?;
     let metadata = match std::fs::symlink_metadata(target) {
         Ok(metadata) => metadata,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -610,6 +612,17 @@ pub fn remove_target(target: &Path) -> Result<()> {
     } else {
         std::fs::remove_file(target)?;
     }
+    Ok(())
+}
+
+/// Development builds may inspect arbitrary workspaces, but deployment and
+/// removal must stay inside the hermetic dev home. This prevents a dev app
+/// session from rewriting project or production agent skill directories.
+fn ensure_dev_write_target(target: &Path) -> Result<()> {
+    #[cfg(not(test))]
+    crate::core::central_repo::ensure_dev_path_allowed(target)?;
+    #[cfg(test)]
+    let _ = target;
     Ok(())
 }
 
@@ -994,8 +1007,7 @@ mod tests {
         fs::write(elsewhere.join("mine.md"), "user content").unwrap();
         std::os::unix::fs::symlink(&elsewhere, &tgt).unwrap();
 
-        let err =
-            sync_skill(&src, &tgt, SyncMode::Symlink, ReplacePolicy::NoClobber).unwrap_err();
+        let err = sync_skill(&src, &tgt, SyncMode::Symlink, ReplacePolicy::NoClobber).unwrap_err();
         assert!(err.to_string().contains("Refusing to replace"), "{err}");
         assert_eq!(fs::read_link(&tgt).unwrap(), elsewhere);
         assert!(elsewhere.join("mine.md").exists());
@@ -1015,8 +1027,7 @@ mod tests {
         fs::write(src.join("SKILL.md"), "# hello").unwrap();
         std::os::unix::fs::symlink(&gone, &tgt).unwrap();
 
-        let err =
-            sync_skill(&src, &tgt, SyncMode::Symlink, ReplacePolicy::NoClobber).unwrap_err();
+        let err = sync_skill(&src, &tgt, SyncMode::Symlink, ReplacePolicy::NoClobber).unwrap_err();
         assert!(err.to_string().contains("Refusing to replace"), "{err}");
 
         sync_skill(
@@ -1163,8 +1174,8 @@ mod tests {
         fs::write(real.join("SKILL.md"), "# hello").unwrap();
         std::os::unix::fs::symlink(&real, &link).unwrap();
 
-        let err = sync_skill(&link, &link, SyncMode::Copy, ReplacePolicy::UserConfirmed)
-            .unwrap_err();
+        let err =
+            sync_skill(&link, &link, SyncMode::Copy, ReplacePolicy::UserConfirmed).unwrap_err();
         assert!(err.to_string().contains("same path"), "{err}");
         // The link and everything behind it must survive.
         assert!(link.is_symlink());
@@ -1176,8 +1187,13 @@ mod tests {
         // the plain `src == dst` guard and never reach the lexical comparison.
         let aliased = tmp.path().join("real").join("..").join("link");
         assert_ne!(aliased, link, "alias must not be trivially equal");
-        let err = sync_skill(&aliased, &link, SyncMode::Copy, ReplacePolicy::UserConfirmed)
-            .unwrap_err();
+        let err = sync_skill(
+            &aliased,
+            &link,
+            SyncMode::Copy,
+            ReplacePolicy::UserConfirmed,
+        )
+        .unwrap_err();
         assert!(err.to_string().contains("same path"), "{err}");
         assert!(link.is_symlink());
         assert!(real.join("SKILL.md").exists());

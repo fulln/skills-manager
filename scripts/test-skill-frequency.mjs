@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+const source = fs.readFileSync(new URL('../src/lib/skillFrequency.ts', import.meta.url), 'utf8');
+const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
+const { skillFrequencies, hasNameVariants, frequencyTier } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const row = (skill, project, window_days, explicit, declared, inferred, last_used_at) => ({ skill, project, window_days, explicit, declared, inferred, events: explicit + declared + inferred, sessions: 1, last_used_at });
+const rows = [row('alpha', 'p1', 30, 2, 1, 4, 100), row('alpha', 'p2', 30, 3, 0, 1, 200), row('alpha', null, 30, 1, 0, 0, 50), row('alpha', 'p1', 7, 1, 0, 0, 100), row('beta', 'p1', 30, 0, 2, 5, 120)];
+assert.deepEqual(skillFrequencies(rows, 30, null).get('alpha'), { explicit: 6, declared: 1, inferred: 5, lastEvidence: 200 });
+assert.equal(skillFrequencies(rows, 30, 'p1').get('alpha').explicit, 2);
+assert.equal(skillFrequencies(rows, 30, 'unknown').size, 0);
+assert.equal(skillFrequencies(rows, 7, null).get('alpha').explicit, 1);
+assert.equal(skillFrequencies(rows, 30, null).get('beta').explicit, 0);
+assert.equal(skillFrequencies([], 30, null).size, 0);
+assert.equal(hasNameVariants([{ name: 'alpha', path: '/a', canonical_path: '/real' }, { name: 'alpha', path: '/mirror', canonical_path: '/real' }], 'alpha'), false);
+assert.equal(hasNameVariants([{ name: 'alpha', path: '/a' }, { name: 'alpha', path: '/b' }], 'alpha'), true);
+assert.equal(frequencyTier(0, 30), 'none');
+assert.equal(frequencyTier(1, 30), 'low');
+assert.equal(frequencyTier(4, 30), 'low');
+assert.equal(frequencyTier(5, 30), 'medium');
+assert.equal(frequencyTier(1, 7), 'medium');
+assert.equal(frequencyTier(12, 90), 'low');
+assert.equal(frequencyTier(13, 90), 'medium');
+assert.equal(frequencyTier(null, 30), 'unknown');
+assert.equal(frequencyTier(undefined, 30), 'unknown');
+assert.equal(frequencyTier(-1, 30), 'unknown');
+assert.equal(frequencyTier(NaN, 30), 'unknown');
+assert.equal(frequencyTier(1, 0), 'unknown');
+for (const days of [7, 30, 90]) {
+  const high = Math.ceil(days * 3 / 7);
+  assert.equal(frequencyTier(high - 1, days), 'medium');
+  assert.equal(frequencyTier(high, days), 'high');
+}
+console.log('26 frequency boundary checks passed');

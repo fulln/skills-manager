@@ -1,0 +1,76 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import { createRequire } from 'node:module';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import ts from 'typescript';
+const cache = new Map();
+function load(url) {
+  if (cache.has(url.href)) return cache.get(url.href);
+  const exports = {}; cache.set(url.href, exports);
+  const code = ts.transpileModule(fs.readFileSync(url, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+  const require = id => {
+    if (id === 'react') return { ...React, useMemo: compute => compute() };
+    if (!id.startsWith('.')) return createRequire(url)(id);
+    return load(['.ts', '.tsx'].map(ext => new URL(id + ext, url)).find(file => fs.existsSync(file)));
+  };
+  vm.runInNewContext('(function(require,exports,React){' + code + '\n})')(require, exports, React);
+  return exports;
+}
+const { buildLiveGraph } = load(new URL('../src/lib/liveUsageGraph.ts', import.meta.url));
+const { SkillUsageFlow } = load(new URL('../src/components/SkillUsageFlow.tsx', import.meta.url));
+let checks = 0;
+const equal = (a, b) => { assert.deepEqual(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b))); checks++; };
+const match = (s, re) => { assert.match(s, re); checks++; };
+const absent = (s, re) => { assert.doesNotMatch(s, re); checks++; };
+const event = (id, agent, project_path, skill, evidence, occurred_at = 10) => ({ id, agent, project_path, skill, evidence, occurred_at, session_id: 'session', source_ref: '/private/log:15', excerpt: 'safe excerpt' });
+const first = event('1', 'codex', '/p/one', 'alpha', 'explicit_invocation');
+const events = [first, event('2', 'codex', '/p/one', 'beta', 'read_inferred'), event('3', 'claude_code', '/p/one', 'gamma', 'explicit_invocation'), event('4', 'codex', '/p/two', 'alpha', 'assistant_declaration'), first];
+const graph = buildLiveGraph(events);
+equal(graph.agents.length, 2);
+equal(graph.projects.length, 3); // Same project, two Agents: preserve actual routes.
+equal(graph.projectCount, 2);
+equal(graph.skills.length, 3);
+equal(graph.routeCount, 4);
+equal(graph.edges.length, 7);
+equal(graph.skills.find(n => n.label === 'alpha').counts, { explicit_invocation: 1, assistant_declaration: 1, read_inferred: 0 });
+equal(graph.agents.find(n => n.label === 'Codex').counts.read_inferred, 1);
+const one = graph.eventRoutes.get('1'); const three = graph.eventRoutes.get('3');
+equal(one[1] === three[1], false);
+equal(graph.edges.some(e => e.from === one[1] && e.to === three[2]), false);
+const updated = buildLiveGraph([...events, event('5', 'codex', '/p/two', 'alpha', 'explicit_invocation', 20)]);
+equal(updated.routeCount, 4);
+equal(updated.skills.find(n => n.label === 'alpha').counts.explicit_invocation, 2);
+equal(updated.skills.find(n => n.label === 'alpha').latest.id, '5');
+equal(buildLiveGraph([...events].reverse()).skills.map(n => n.id), graph.skills.map(n => n.id));
+equal(buildLiveGraph([]).edges.length, 0);
+const render = (items, selectedId = null) => renderToStaticMarkup(React.createElement(SkillUsageFlow, { events: items, selectedId }));
+const actual = render(events, '1');
+match(actual, /Codex/); match(actual, /Claude Code/);
+match(actual, /2 个项目/); match(actual, /3 个技能/);
+for (const name of ['alpha', 'beta', 'gamma']) match(actual, new RegExp(name));
+match(actual, /调用 1 · 声明 1 · 读取 0/);
+absent(actual, /success|成功|gpt-|magpie|safe excerpt|private\/log/);
+match(render([event('unknown', null, null, 'alpha', 'read_inferred')]), /未知 Agent/);
+match(render([event('unknown', null, null, 'alpha', 'read_inferred')]), /未归属项目/);
+match(render([]), /等待真实技能事件/);
+absent(render([]), /Codex|alpha/);
+match(render([{ ...first, skill: '<script>bad</script>' }]), /&lt;script&gt;bad&lt;\/script&gt;/);
+// Selecting a different event highlights its route; it never hides the others.
+match(render(events, '3'), /alpha/); match(render(events, '3'), /beta/);
+const opened = []; const selected = [];
+const tree = SkillUsageFlow({ events, onOpenSkill: event => opened.push(event), onSelect: id => selected.push(id) });
+const buttons = [];
+function visit(element) {
+  if (!element || typeof element !== 'object') return;
+  if (Array.isArray(element)) { element.forEach(visit); return; }
+  if (element.type === 'button') buttons.push(element);
+  visit(element.props?.children);
+}
+visit(tree);
+buttons.find(button => button.props['aria-label'].startsWith('查看技能介绍 alpha')).props.onClick();
+equal(opened.length, 1); equal(opened[0].skill, 'alpha'); equal(selected.length, 0);
+buttons.find(button => button.props['aria-label'].startsWith('Codex：')).props.onClick();
+equal(selected.length, 1); equal(opened.length, 1);
+console.log(`${checks} multi-project graph and click checks passed`);

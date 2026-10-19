@@ -13,7 +13,7 @@ interface Props {
    *  stop it). Only for actions that always finish, like a clone. */
   lockWhileRunning?: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: () => Promise<void | boolean>;
 }
 
 export function ConfirmDialog({
@@ -50,8 +50,8 @@ export function ConfirmDialog({
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      await onConfirm();
-      onClose();
+      const confirmed = await onConfirm();
+      if (confirmed !== false) onClose();
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export function ConfirmDialog({
             {details.map((detail) => (
               <span
                 key={detail}
-                className="rounded-full border border-border-subtle bg-bg-secondary px-2.5 py-1 text-[13px] text-secondary"
+                className="break-all rounded-full border border-border-subtle bg-bg-secondary px-2.5 py-1 text-[13px] text-secondary"
               >
                 {detail}
               </span>
