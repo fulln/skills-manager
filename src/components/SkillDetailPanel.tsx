@@ -27,6 +27,7 @@ import { SkillMarkdown } from "./SkillMarkdown";
 import { AgentToggleSection, type AgentToggleItem } from "./AgentToggleSection";
 import { SkillProjectsSection } from "./SkillProjectsSection";
 import { SyncDots } from "./SyncDots";
+import { SkillProjectLinks } from "./SkillProjectLinks";
 
 interface Props {
   skill: ManagedSkill | null;
@@ -248,6 +249,7 @@ function SkillDetailPanelContent({
           {skill.central_path}
         </span>
       </div>
+      <SkillProjectLinks key={skill.id} skill={skill} />
       {metadataItems.length > 0 && (
         <div className="mt-4 rounded-xl border border-border-subtle bg-surface/70">
           <button
