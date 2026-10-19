@@ -23,7 +23,7 @@ function loadTS(url) {
 }
 const { SkillInventory } = loadTS(new URL('../src/components/SkillInventory.tsx', import.meta.url));
 const skill = { id: 'a', name: 'example', description: 'A real purpose', scope: 'project', role: 'specialist', path: '/skills/example', category: 'unknown' };
-const props = { skills: [skill], managed: [], frequencies: new Map([['example', { explicit: 2, declared: 5, inferred: 9, lastEvidence: null }]]), variants: new Set(), ready: true, days: 30, onOpen() {}, onInspect() {} };
+const props = { skills: [skill], managed: [], frequencies: new Map([['example', { explicit: 2, declared: 5, inferred: 9, lastEvidence: null }]]), variants: new Set(), ready: true, days: 30, onOpen() {}, onInspect() {}, onViewFamily() {} };
 const render = extra => renderToStaticMarkup(React.createElement(SkillInventory, { ...props, ...extra }));
 const list = render({ view: 'list' });
 assert.match(list, /来源待核对/);
@@ -57,7 +57,9 @@ assert.doesNotMatch(legend, /采集异常/);
 assert.match(render({ view: 'cards', frequencies: new Map([['example', { explicit: 5 }]]) }), /中频/);
 console.log('25 inventory rendering checks passed');
 
-const { specKitFamily } = loadTS(new URL('../src/lib/skillFamily.ts', import.meta.url));
+
+const { groupSkillFamilies } = loadTS(new URL('../src/lib/skillFamily.ts', import.meta.url));
+const { SkillFamilyCard } = loadTS(new URL('../src/components/SkillFamilyCard.tsx', import.meta.url));
 const specCopies = [
   { ...skill, id: 'plan-a', name: 'speckit-plan', project_id: 'a', path: '/a/plan' },
   { ...skill, id: 'plan-b', name: 'speckit-plan', project_id: 'b', path: '/b/plan' },
@@ -67,32 +69,51 @@ const specFrequencies = new Map([
   ['speckit-plan', { explicit: 4, declared: 2, inferred: 3, lastEvidence: 10 }],
   ['speckit-tasks', { explicit: 6, declared: 1, inferred: 1, lastEvidence: 20 }],
 ]);
-const family = specKitFamily([...specCopies, skill], specFrequencies);
+const entries = groupSkillFamilies([...specCopies, skill], specFrequencies);
+const family = entries[0].family;
 assert.equal(family.copies, 3);
 assert.equal(family.projects, 2);
 assert.equal(family.stages.size, 2);
-assert.equal(family.total.explicit, 10, 'project copies must not multiply name-based frequency');
+assert.equal(family.total.explicit, 10);
 assert.equal(family.total.declared, 3);
 assert.equal(family.total.inferred, 4);
 assert.equal(family.total.lastEvidence, 20);
-assert.equal(family.other.length, 1);
-assert.equal(family.other[0].id, skill.id);
-assert.equal(family.stages.get('speckit-plan')[1].path, '/b/plan');
-assert.equal(specKitFamily([skill], new Map()).copies, 0);
-assert.equal(specKitFamily([{ ...skill, name: 'speckitish' }], new Map()).copies, 0);
-assert.equal(specKitFamily([specCopies[0]], specFrequencies).total.explicit, 4);
+assert.equal(entries[1].skill.id, skill.id);
+assert.equal(family.stages.get('speckit-plan')[1].id, 'plan-b');
+assert.equal(groupSkillFamilies([skill], new Map())[0].kind, 'skill');
+assert.equal(groupSkillFamilies([{ ...skill, name: 'speckitish' }], new Map())[0].kind, 'skill');
+assert.equal(groupSkillFamilies([specCopies[0]], specFrequencies)[0].family.total.explicit, 4);
 const familyMarkup = render({ view: 'cards', skills: [...specCopies, skill], frequencies: specFrequencies });
 assert.equal((familyMarkup.match(/aria-label="SpecKit 技能组"/g) || []).length, 1);
 assert.match(familyMarkup, /2 个阶段 · 2 个项目 · 3 个副本/);
 assert.match(familyMarkup, /^<div class="grid grid-cols-2 xl:grid-cols-3 gap-3"><article aria-label="SpecKit 技能组" class="app-panel p-3 flex flex-col gap-2">/);
-assert.doesNotMatch(familyMarkup, /<details|<summary/, 'SpecKit is a normal summary card, not an accordion');
-assert.doesNotMatch(familyMarkup, /配置 speckit-|查看 speckit-/, 'display-only family cannot act on an arbitrary copy');
+assert.doesNotMatch(familyMarkup, /<details|<summary/);
+assert.match(familyMarkup, /aria-label="查看 SpecKit 技能组"/);
 assert.match(familyMarkup, /配置 example/);
-assert.match(familyMarkup, /按阶段名称合计/);
-const groupedList = render({ view: 'list', skills: specCopies, frequencies: specFrequencies });
-assert.match(groupedList, /<tbody><tr aria-label="SpecKit 技能组"/);
-assert.match(groupedList, /仅展示/);
+assert.match(familyMarkup, /按技能名称合计/);
+assert.match(render({ view: 'list', skills: specCopies, frequencies: specFrequencies }), /<tbody><tr aria-label="SpecKit 技能组"/);
 assert.match(render({ view: 'cards', skills: specCopies, ready: false }), /待统计/);
-assert.equal(family.stages.get('speckit-plan')[1].id, 'plan-b');
-assert.equal(specCopies.length, 3, 'grouping cannot mutate the discovered inventory');
-console.log('SpecKit card layout and evidence aggregation checks passed');
+const openspec = ['openspec-apply-change', 'openspec-apply-change', 'openspec-propose', 'source-command-opsx-apply'].map((name, i) => ({ ...skill, name, id: `open-${i}`, project_id: String(i), path: `/open/${i}` }));
+const openEntries = groupSkillFamilies(openspec, new Map([['openspec-apply-change', { explicit: 5 }], ['openspec-propose', { explicit: 2 }]]));
+assert.equal(openEntries.length, 1);
+assert.equal(openEntries[0].family.title, 'OpenSpec');
+assert.equal(openEntries[0].family.total.explicit, 7);
+assert.equal(openEntries[0].family.copies, 4);
+assert.match(render({ view: 'cards', skills: openspec }), /查看 OpenSpec 技能组/);
+const duplicate = [{ ...skill, id: 'one', name: 'same' }, { ...skill, id: 'two', name: 'same', path: '/other/same' }];
+const grouped = groupSkillFamilies([skill, ...duplicate], new Map());
+assert.equal(grouped[0].kind, 'skill');
+assert.equal(grouped[1].family.title, 'same');
+assert.equal(grouped[1].family.stages.get('same')[1].id, 'two');
+let opened;
+const tree = SkillFamilyCard({ family: openEntries[0].family, onView(value) { opened = value; }, days: 30, state: 'ready', view: 'cards' });
+function nodes(element) {
+  if (!element || typeof element !== 'object') return [];
+  if (Array.isArray(element)) return element.flatMap(nodes);
+  return [element, ...nodes(element.props?.children)];
+}
+nodes(tree).find(n => n.props?.['aria-label'] === '查看 OpenSpec 技能组').props.onClick();
+assert.equal(opened.id, 'suite:openspec');
+assert.equal(opened.stages.get('openspec-apply-change')[1].id, 'open-1');
+assert.equal(specCopies.length, 3);
+console.log('Family grouping, view buttons and evidence aggregation checks passed');

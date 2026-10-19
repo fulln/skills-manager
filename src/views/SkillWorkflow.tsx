@@ -11,6 +11,8 @@ import { usageSummaries } from '../lib/usage';
 import type { UsageSummary } from '../lib/usage';
 import { hasNameVariants, skillFrequencies } from '../lib/skillFrequency';
 import { SkillInventory } from '../components/SkillInventory';
+import { SkillFamilyDetail } from '../components/SkillFamilyDetail';
+import type { SkillFamily } from '../lib/skillFamily';
 import { FrequencyLegend } from '../components/FrequencyBadge';
 
 const categories = [
@@ -61,6 +63,7 @@ export function SkillWorkflow() {
   const [sort, setSort] = useState('frequency');
   const [view, setView] = useState<'list' | 'cards'>(() => localStorage.getItem('skills-workbench-view') === 'cards' ? 'cards' : 'list');
   const [attention, setAttention] = useState('all');
+  const [family, setFamily] = useState<SkillFamily | null>(null);
   const loadSequence = useRef(0);
   const closeConfig = useCallback(() => setConfig(null), []);
   const load = useCallback(async (refresh = false) => { const sequence = ++loadSequence.current; setError(''); try { const next = refresh ? await workflowRefresh() : await workflowSnapshot(); if (sequence === loadSequence.current) setData(next); } catch (e) { if (sequence === loadSequence.current) setError(String(e)); } finally { if (sequence === loadSequence.current) setLoading(false); } }, []);
@@ -119,8 +122,9 @@ export function SkillWorkflow() {
     </section>
     <div className="flex items-center justify-between gap-3 text-[11px] text-tertiary"><p>{loading && !data ? '正在发现真实项目…' : `显示 ${skills.length} / ${scopedSkills.length} 个技能 · ${data?.projects.length || 0} 个项目`} · {data?.sync.running ? '正在同步…' : data?.sync.error ? `同步异常：${data.sync.error}` : `刷新 ${time(data?.sync.last_refresh || null)}`}</p><FrequencyLegend days={days} /><button className="underline text-secondary shrink-0" onClick={() => navigate('/skill-usage')}>统计与证据 ↗</button></div>
     {usageError ? <p role="alert" className="text-[12px] text-danger">统计暂不可用：{usageError}</p> : project && !scopeId ? <p className="text-[12px] text-secondary">当前项目尚未匹配统计范围。</p> : null}
-    {skills.length ? <SkillInventory skills={skills} managed={managedSkills} frequencies={frequencies} variants={variants} ready={!!frequencyReady} availability={usageError ? 'unavailable' : project && !scopeId ? 'unmatched' : 'loading'} days={days} view={view} onInspect={setConfig} onOpen={id => { openSkillDetailById(id); navigate('/my-skills'); }} /> : <div className="app-panel p-8 text-center text-[13px] text-secondary">{loading && !data ? '正在读取技能清单…' : '当前筛选没有符合条件的技能。'}</div>}
+    {skills.length ? <SkillInventory onViewFamily={setFamily} skills={skills} managed={managedSkills} frequencies={frequencies} variants={variants} ready={!!frequencyReady} availability={usageError ? 'unavailable' : project && !scopeId ? 'unmatched' : 'loading'} days={days} view={view} onInspect={setConfig} onOpen={id => { openSkillDetailById(id); navigate('/my-skills'); }} /> : <div className="app-panel p-8 text-center text-[13px] text-secondary">{loading && !data ? '正在读取技能清单…' : '当前筛选没有符合条件的技能。'}</div>}
     <p className="text-[11px] text-tertiary">调用按已采集来源会话去重；声明与读取另列，零记录不代表未使用。同名证据无法区分副本版本。来源待核对项不会算作本地原创；下载后改动可作为复核候选，不代表质量有问题。</p>
+    {family && <SkillFamilyDetail key={family.id} family={family} projects={data?.projects || []} managedIds={new Set(managedSkills.map(s => s.id))} onClose={() => setFamily(null)} onOpenManaged={id => { setFamily(null); openSkillDetailById(id); navigate('/my-skills'); }} />}
     {config && <SkillConfig skill={config} onClose={closeConfig} onSaved={s => { ++loadSequence.current; setData(s); setConfig(null); }} />}
   </div>;
 }
