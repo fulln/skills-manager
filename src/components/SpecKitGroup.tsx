@@ -1,49 +1,34 @@
-import { FileSearch, SlidersHorizontal } from 'lucide-react';
 import { FrequencyBadge } from './FrequencyBadge';
-import { specKitFamily } from '../lib/skillFamily';
-import type { WorkflowProject, WorkflowSkill } from '../lib/workflow';
+import type { specKitFamily } from '../lib/skillFamily';
 
 interface Props {
   family: ReturnType<typeof specKitFamily>;
-  projects: WorkflowProject[];
-  frequencies: Parameters<typeof specKitFamily>[1];
-  managedIds: Set<string>;
   days: number;
   state: 'ready' | 'loading' | 'unavailable' | 'unmatched';
-  onInspect: (skill: WorkflowSkill) => void;
-  onOpen: (id: string) => void;
+  view: 'list' | 'cards';
 }
 
-export function SpecKitGroup({ family, projects, frequencies, managedIds, days, state, onInspect, onOpen }: Props) {
-  const projectsById = new Map(projects.map(p => [p.id, p]));
-  return <details className="app-panel overflow-hidden" aria-label="SpecKit 技能组">
-    <summary className="cursor-pointer p-4">
-      <span className="inline-flex flex-wrap items-center justify-between gap-3 w-[calc(100%_-_20px)] align-middle">
-        <span><strong className="text-[14px]">SpecKit</strong><span className="text-[12px] text-secondary ml-3">{family.stages.size} 个阶段 · {family.projects} 个项目 · {family.copies} 个副本</span><span className="block text-[12px] text-tertiary mt-1">规范、计划、任务、实施与核查 · 展开选择阶段和项目</span></span>
-        <span className="inline-flex items-center gap-2"><span className="text-[11px] text-tertiary">近 {days} 天明确调用</span><FrequencyBadge count={family.total.explicit} days={days} state={state} /></span>
-      </span>
-    </summary>
-    <div className="border-t border-border-subtle px-4 pb-3">
-      <p className="text-[11px] text-tertiary py-3">调用按阶段名称合计一次；项目副本保留各自内容、来源与配置。</p>
-      {[...family.stages].map(([name, copies]) => <details key={name} className="border-t border-border-subtle" aria-label={`${name} 项目副本`}>
-        <summary className="cursor-pointer py-3 text-[12px]">
-          <span className="inline-flex flex-wrap items-center justify-between gap-2 w-[calc(100%_-_20px)] align-middle">
-            <span><strong>{name}</strong><span className="text-tertiary ml-2">{copies.length} 个副本</span></span>
-            <FrequencyBadge count={frequencies.get(name)?.explicit || 0} days={days} state={state} />
-          </span>
-        </summary>
-        <div className="pb-3 space-y-1">{copies.map(skill => {
-          const project = skill.project_id ? projectsById.get(skill.project_id) : null;
-          const label = project?.name || (skill.scope === 'global' ? '全局' : skill.project_id || '项目');
-          return <div key={skill.id} className="flex items-center justify-between gap-3 rounded-lg bg-bg-secondary px-3 py-2">
-            <div className="min-w-0"><button className="text-[12px] font-medium hover:underline" onClick={() => onInspect(skill)}>{label}</button><p className="text-[11px] text-tertiary break-all">{skill.canonical_path || skill.path}</p></div>
-            <div className="flex items-center gap-1 shrink-0">
-              {managedIds.has(skill.id) && <button className="app-icon-button" aria-label={`查看 ${skill.name} · ${label}`} title="查看技能内容" onClick={() => onOpen(skill.id)}><FileSearch size={15} /></button>}
-              <button className="app-icon-button" aria-label={`配置 ${skill.name} · ${label}`} title="查看来源与配置" onClick={() => onInspect(skill)}><SlidersHorizontal size={15} /></button>
-            </div>
-          </div>;
-        })}</div>
-      </details>)}
-    </div>
-  </details>;
+export function SpecKitGroup({ family, days, state, view }: Props) {
+  const ready = state === 'ready';
+  const count = `${family.stages.size} 个阶段 · ${family.projects} 个项目 · ${family.copies} 个副本`;
+  const description = '规范驱动开发：需求、计划、任务、实施与核查。';
+  const categories = [...new Set([...family.stages.values()].flat().map(s => s.category_override || s.category || s.detected_category || 'unknown'))];
+  const source = categories.length === 1 ? ({ local_packaged: '本地封装', downloaded: '下载', downloaded_modified: '下载后改动', unknown: '来源待核对' }[categories[0]]) : '多种来源';
+  const last = family.total.lastEvidence ? new Date(family.total.lastEvidence * 1000).toLocaleDateString('zh-CN') : '暂无证据';
+  if (view === 'list') return <tr aria-label="SpecKit 技能组" className="border-t border-border-subtle hover:bg-surface-hover">
+    <td className="px-3 py-2.5"><span className="text-[13px] font-medium">SpecKit</span><p className="text-[11px] text-tertiary mt-1">{count}</p></td>
+    <td className="p-3"><span>{source}</span><span className="block text-[11px] text-tertiary mt-1">项目 · 技能组</span></td>
+    <td className="p-3 text-secondary">项目内发现</td>
+    <td className="p-3 text-right"><FrequencyBadge count={family.total.explicit} days={days} state={state} /></td>
+    <td className="p-3 text-right tabular-nums text-secondary">{ready ? `${family.total.declared} / ${family.total.inferred}` : '—'}</td>
+    <td className="p-3 text-[11px] text-secondary">{ready ? last : '—'}</td><td className="p-2 text-right text-tertiary">仅展示</td>
+  </tr>;
+  return <article aria-label="SpecKit 技能组" className="app-panel p-3 flex flex-col gap-2">
+    <div className="min-h-7 flex items-start justify-between gap-2"><h3 className="text-[13px] font-semibold">SpecKit</h3></div>
+    <p className="text-[12px] text-secondary line-clamp-2" title={description}>{description}</p>
+    <div className="text-[12px]"><span className={source === '来源待核对' ? 'text-secondary' : 'text-primary'}>{source}</span><span className="block text-[11px] text-tertiary mt-1">{count}</span></div>
+    <div className="flex items-center justify-between mt-auto border-t border-border-subtle pt-2"><span className="text-[12px] text-secondary">近 {days} 天明确调用</span><FrequencyBadge count={family.total.explicit} days={days} state={state} large /></div>
+    <p className="text-[11px] text-tertiary">声明 {ready ? family.total.declared : '—'} · 读取 {ready ? family.total.inferred : '—'} · {ready ? last : '—'}</p>
+    <div className="text-[11px] text-tertiary">Agent 目标：项目内发现 · 按阶段名称合计</div>
+  </article>;
 }

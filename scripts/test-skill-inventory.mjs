@@ -58,7 +58,6 @@ assert.match(render({ view: 'cards', frequencies: new Map([['example', { explici
 console.log('25 inventory rendering checks passed');
 
 const { specKitFamily } = loadTS(new URL('../src/lib/skillFamily.ts', import.meta.url));
-const { SpecKitGroup } = loadTS(new URL('../src/components/SpecKitGroup.tsx', import.meta.url));
 const specCopies = [
   { ...skill, id: 'plan-a', name: 'speckit-plan', project_id: 'a', path: '/a/plan' },
   { ...skill, id: 'plan-b', name: 'speckit-plan', project_id: 'b', path: '/b/plan' },
@@ -82,26 +81,18 @@ assert.equal(family.stages.get('speckit-plan')[1].path, '/b/plan');
 assert.equal(specKitFamily([skill], new Map()).copies, 0);
 assert.equal(specKitFamily([{ ...skill, name: 'speckitish' }], new Map()).copies, 0);
 assert.equal(specKitFamily([specCopies[0]], specFrequencies).total.explicit, 4);
-const familyMarkup = render({ view: 'cards', skills: [...specCopies, skill], frequencies: specFrequencies, projects: [{ id: 'a', name: 'Project A' }, { id: 'b', name: 'Project B' }] });
+const familyMarkup = render({ view: 'cards', skills: [...specCopies, skill], frequencies: specFrequencies });
 assert.equal((familyMarkup.match(/aria-label="SpecKit 技能组"/g) || []).length, 1);
 assert.match(familyMarkup, /2 个阶段 · 2 个项目 · 3 个副本/);
-assert.match(familyMarkup, /Project A/);
-assert.match(familyMarkup, /Project B/);
-assert.doesNotMatch(familyMarkup, /<details[^>]*\sopen(?:=|>)/, 'family and stages start collapsed');
+assert.match(familyMarkup, /^<div class="grid grid-cols-2 xl:grid-cols-3 gap-3"><article aria-label="SpecKit 技能组" class="app-panel p-3 flex flex-col gap-2">/);
+assert.doesNotMatch(familyMarkup, /<details|<summary/, 'SpecKit is a normal summary card, not an accordion');
+assert.doesNotMatch(familyMarkup, /配置 speckit-|查看 speckit-/, 'display-only family cannot act on an arbitrary copy');
 assert.match(familyMarkup, /配置 example/);
-assert.match(familyMarkup, /配置 speckit-plan · Project B/);
-assert.match(render({ view: 'list', skills: specCopies, frequencies: specFrequencies }), /SpecKit 技能组/);
+assert.match(familyMarkup, /按阶段名称合计/);
+const groupedList = render({ view: 'list', skills: specCopies, frequencies: specFrequencies });
+assert.match(groupedList, /<tbody><tr aria-label="SpecKit 技能组"/);
+assert.match(groupedList, /仅展示/);
 assert.match(render({ view: 'cards', skills: specCopies, ready: false }), /待统计/);
-let selected;
-const tree = SpecKitGroup({ family, projects: [{ id: 'a', name: 'Project A' }, { id: 'b', name: 'Project B' }], frequencies: specFrequencies, managedIds: new Set(), days: 30, state: 'ready', onInspect(s) { selected = s.id; }, onOpen() {} });
-function nodes(element) {
-  if (!element || typeof element !== 'object') return [];
-  if (Array.isArray(element)) return element.flatMap(nodes);
-  return [element, ...nodes(element.props?.children)];
-}
-const projectB = nodes(tree).find(n => n.props?.['aria-label'] === '配置 speckit-plan · Project B');
-assert(projectB);
-projectB.props.onClick();
-assert.equal(selected, 'plan-b', 'opening project B must preserve its actual skill id');
+assert.equal(family.stages.get('speckit-plan')[1].id, 'plan-b');
 assert.equal(specCopies.length, 3, 'grouping cannot mutate the discovered inventory');
-console.log('25 SpecKit grouping, evidence and project-action checks passed');
+console.log('SpecKit card layout and evidence aggregation checks passed');

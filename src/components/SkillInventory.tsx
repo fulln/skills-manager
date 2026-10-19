@@ -2,13 +2,12 @@ import { FileSearch, SlidersHorizontal } from 'lucide-react';
 import { FrequencyBadge } from './FrequencyBadge';
 import type { ManagedSkill } from '../lib/tauri';
 import type { SkillFrequency } from '../lib/skillFrequency';
-import type { WorkflowProject, WorkflowSkill } from '../lib/workflow';
+import type { WorkflowSkill } from '../lib/workflow';
 import { specKitFamily } from '../lib/skillFamily';
 import { SpecKitGroup } from './SpecKitGroup';
 
 interface Props {
   skills: WorkflowSkill[];
-  projects?: WorkflowProject[];
   managed: ManagedSkill[];
   frequencies: Map<string, SkillFrequency>;
   variants: Set<string>;
@@ -24,13 +23,10 @@ const scope = (value: string) => ({ global: '全局', domain: '领域', project:
 const role = (value: string) => ({ orchestration: '编排', specialist: '专用', primitive: '基础' }[value] || value);
 const date = (value: number | null | undefined) => value ? new Date(value * 1000).toLocaleDateString('zh-CN') : '暂无证据';
 
-export function SkillInventory({ skills, projects = [], managed, frequencies, variants, ready, availability = 'loading', days, view, onInspect, onOpen }: Props) {
+export function SkillInventory({ skills, managed, frequencies, variants, ready, availability = 'loading', days, view, onInspect, onOpen }: Props) {
   const frequencyState = ready ? 'ready' : availability;
   const family = specKitFamily(skills, frequencies);
-  if (family.copies) return <div className="space-y-3">
-    <SpecKitGroup family={family} projects={projects} frequencies={frequencies} managedIds={new Set(managed.map(s => s.id))} days={days} state={frequencyState} onInspect={onInspect} onOpen={onOpen} />
-    {family.other.length > 0 && <SkillInventory skills={family.other} projects={projects} managed={managed} frequencies={frequencies} variants={variants} ready={ready} availability={availability} days={days} view={view} onInspect={onInspect} onOpen={onOpen} />}
-  </div>;
+  const visibleSkills = family.other;
   const managedById = new Map(managed.map(s => [s.id, s]));
   function metadata(s: WorkflowSkill) {
     const category = s.category_override || s.category || s.detected_category || 'unknown';
@@ -43,7 +39,7 @@ export function SkillInventory({ skills, projects = [], managed, frequencies, va
   function actions(s: WorkflowSkill) {
     return <div className="flex items-center justify-end gap-1">{managedById.has(s.id) && <button className="app-icon-button" title="查看技能内容" aria-label={`查看 ${s.name}`} onClick={() => onOpen(s.id)}><FileSearch size={15} /></button>}<button className="app-icon-button" title="查看来源与配置" aria-label={`配置 ${s.name}`} onClick={() => onInspect(s)}><SlidersHorizontal size={15} /></button></div>;
   }
-  if (view === 'cards') return <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">{skills.map(s => {
+  if (view === 'cards') return <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">{family.copies > 0 && <SpecKitGroup family={family} days={days} state={frequencyState} view="cards" />}{visibleSkills.map(s => {
     const f = frequencies.get(s.name);
     return <article key={s.id} className="app-panel p-3 flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2"><h3 className="text-[13px] font-semibold break-all">{s.name}</h3>{actions(s)}</div>
@@ -61,7 +57,7 @@ export function SkillInventory({ skills, projects = [], managed, frequencies, va
       <th className="w-[32%] p-3 font-medium">技能 / 用途</th><th className="w-[14%] p-3 font-medium">来源 / 层级</th><th className="w-[14%] p-3 font-medium">Agent 目标</th>
       <th className="w-[10%] p-3 font-medium text-right">明确调用</th><th className="w-[11%] p-3 font-medium text-right">声明 / 读取</th><th className="w-[12%] p-3 font-medium">最近证据</th><th className="w-[84px] p-3 font-medium text-right">操作</th>
     </tr></thead>
-    <tbody>{skills.map(s => {
+    <tbody>{family.copies > 0 && <SpecKitGroup family={family} days={days} state={frequencyState} view="list" />}{visibleSkills.map(s => {
       const f = frequencies.get(s.name);
       return <tr key={s.id} className="border-t border-border-subtle hover:bg-surface-hover">
         <td className="px-3 py-2.5"><button className="text-[13px] font-medium text-left hover:underline break-all" onClick={() => onInspect(s)}>{s.name}</button><p title={s.description || ''} className="text-[11px] text-tertiary truncate mt-1">{s.description || '暂无描述'}</p></td>
